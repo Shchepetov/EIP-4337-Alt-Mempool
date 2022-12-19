@@ -1,0 +1,25 @@
+// protoc -I=. --go_out=. --go-grpc_out=require_unimplemented_servers=false:. mempool.proto
+syntax = "proto3";
+
+package go.micro.srv.mempool;
+
+option go_package = ".";
+
+service MemPool {
+  rpc Add(UserOperation) returns (Response) {}
+  rpc GetAll(GetRequest) returns (Response) {}
+}
+
+message UserOperation {
+  string sender = 1;
+  string nonce = 2;
+  string init_code = 3;
+}
+
+message GetRequest {}
+
+message Response {
+  bool ok = 1;
+  UserOperation userOperation = 2;
+  repeated UserOperation userOperations = 3;
+}
