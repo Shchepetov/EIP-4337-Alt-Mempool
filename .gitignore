@@ -17,4 +17,5 @@
 # Other
 *.sqlite
 .idea
-mempool/mempool-client/userop.json
+/mempool/keys/*
+/venv/*
