@@ -2,6 +2,55 @@ import re
 
 from Crypto.Hash import keccak
 
+FORBIDDEN_OPCODES = (
+    "GASPRICE",
+    "GASLIMIT",
+    "DIFFICULTY",
+    "TIMESTAMP",
+    "BASEFEE",
+    "BLOCKHASH",
+    "NUMBER" "SELFBALANCE",
+    "BALANCE",
+    "ORIGIN",
+    "CREATE",
+    "COINBASE",
+    "SELFDESTRUCT",
+)
+
+
+def have_forbidden_opcodes(struct_logs, initializing=False):
+    create2_can_be_called = initializing
+    for i in range(len(struct_logs)):
+        op = struct_logs[i]["op"]
+
+        if struct_logs[i]["depth"] == 1:
+            if create2_can_be_called and op == "NUMBER":
+                create2_can_be_called = False
+            continue
+
+        if op in FORBIDDEN_OPCODES:
+            return True
+
+        if op == "CREATE2":
+            if not create2_can_be_called:
+                return True
+            create2_can_be_called = False
+            continue
+
+        if op == "GAS" and struct_logs[i + 1]["op"] not in (
+            "CALL",
+            "DELEGATECALL",
+            "CALLCODE",
+            "STATICCALL",
+        ):
+            return True
+
+        # TODO: allow not malicious "REVERT" opcode
+        if op == "REVERT" and i != len(struct_logs) - 1:
+            return True
+
+    return False
+
 
 def is_checksum_address(address):
     address = address.replace("0x", "")
@@ -33,7 +82,3 @@ def is_address(address):
 
 def is_uint256(x):
     return isinstance(x, int) and 0 <= x < 2**256
-
-
-def is_hex(s):
-    return re.fullmatch(r"^(0[xX])?[0-9a-fA-F]+$", s or "") is not None
