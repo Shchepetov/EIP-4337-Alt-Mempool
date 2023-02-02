@@ -1,37 +1,44 @@
-from pathlib import Path
+import asyncio
+from datetime import datetime
 
-from fastapi import FastAPI
-from pydantic import BaseModel, BaseSettings, validator, HttpUrl
-from web3 import Web3
-from web3.constants import ADDRESS_ZERO
+import typer
+from fastapi import Depends, FastAPI
+from pydantic import BaseModel, BaseSettings, HttpUrl, validator
+from sqlalchemy.ext.asyncio import AsyncSession
 
 import utils
+from db.base import init_models, get_session
+from db import service
 
 
 class Settings(BaseSettings):
     rpc_server: HttpUrl = "https://goerli.blockpi.network/v1/rpc/public"
     entry_point_address: str = "0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f"
-    entry_point_abi_path: str = "EntryPoint.abi"
+    expires_soon_interval: int = 15
 
 
-class UserOperation(BaseModel):
-    sender: str
+class UserOp(BaseModel):
+    sender: bytes
     nonce: int
-    init_code: str
-    call_data: str
+    init_code: bytes
+    call_data: bytes
     call_gas_limit: int
     verification_gas_limit: int
     pre_verification_gas: int
     max_fee_per_gas: int
     max_priority_fee_per_gas: int
-    paymaster_and_data: str
-    signature: str
+    paymaster_and_data: bytes
+    signature: bytes
 
-    @validator("sender")
+    @validator("sender", pre=True)
     def address(cls, v):
+        if isinstance(v, bytes):
+            return f"0x{v.hex()}"
+
         if not utils.is_address(v):
             raise ValueError("Must be Ethereum address")
-        return v
+
+        return bytes.fromhex(v[2:])
 
     @validator(
         "nonce",
@@ -46,107 +53,67 @@ class UserOperation(BaseModel):
             raise ValueError("Must be in range [0, 2**256)")
         return v
 
-    @validator("init_code", "call_data", "paymaster_and_data", "signature")
+    @validator("init_code", "call_data", "paymaster_and_data", "signature", pre=True)
     def hex(cls, v):
-        return bytes.fromhex(v)
+        return bytes.fromhex(v) if isinstance(v, str) else v.hex()
 
 
-class ValidationResult:
-    pre_op_gas: int
-    prefund: int
+class UserOpSchema(UserOp):
+    id: int
     sig_failed: bool
-    valid_after: int
-    valid_until: int
-    paymaster_context: bytes = bytes()
-    sender_stake: int
-    sender_unstake_delay_sec: int
-    factory_stake: int
-    factory_unstake_delay_sec: int
-    actual_aggregator: str
-    aggregator_stake: int
-    aggregator_unstake_delay_sec: int
+    valid_after: datetime
+    valid_until: datetime
+    validated_at: datetime
 
-    def __init__(self, simulation_return_data: bytes, with_aggregation=False):
-        data = (
-            simulation_return_data[32 * k : 32 * (k + 1)]
-            for k in range(len(simulation_return_data) // 32)
-        )
-
-        for field in [
-            "pre_op_gas",
-            "prefund",
-            "sig_failed",
-            "valid_after",
-            "valid_until",
-        ]:
-            setattr(self, field, int.from_bytes(next(data), byteorder="big"))
-
-        n_bytes = int.from_bytes(next(data), byteorder="big")
-        for _ in range(n_bytes):
-            self.paymaster_context += next(data)
-
-        for field in [
-            "sender_stake",
-            "sender_unstake_delay_sec",
-            "factory_stake",
-            "factory_unstake_delay_sec",
-        ]:
-            setattr(self, field, int.from_bytes(next(data), byteorder="big"))
-
-        if with_aggregation:
-            self.actual_aggregator = "0x" + next(data).hex()[-40:]
-            for field in ["aggregator_stake", "aggregator_unstake_delay_sec"]:
-                setattr(self, field, int.from_bytes(next(data), byteorder="big"))
+    @classmethod
+    def from_db(cls, user_op_schema):
+        d = user_op_schema.__dict__
+        d.pop("_sa_instance_state")
+        return cls(**d)
 
 
 settings = Settings()
 app = FastAPI()
+cli = typer.Typer()
+
+
+@cli.command()
+def db_init_models():
+    asyncio.run(init_models())
+    print("Models initialized")
 
 
 @app.get("/api/get_all")
-async def get_all():
-    return {"message": f"Hello!"}
+async def get_all(session: AsyncSession = Depends(get_session)):
+    user_op_schemes = await service.get_all(session)
+    return [UserOpSchema.from_db(user_op_schema) for user_op_schema in user_op_schemes]
 
 
-@app.post("/api/user_op")
-async def create_item(user_op: UserOperation):
-    validation_result = validate_user_op(user_op, check_forbidden_opcodes=True)
-    return {"message": f"Result: {validation_result}"}
+@app.post("/api/user_op", response_model=int)
+async def create_item(user_op: UserOp, session: AsyncSession = Depends(get_session)):
+    validation_result, validated_at = utils.validate_user_op(
+        user_op,
+        settings.rpc_server,
+        settings.entry_point_address,
+        settings.expires_soon_interval,
+        check_forbidden_opcodes=True,
+    )
+    # TODO: Повторить пункт Client behavior upon receiving a UserOp
+    user_op_schema = await service.add_user_op(
+        session,
+        **dict(user_op),
+        sig_failed=validation_result.sig_failed,
+        valid_after=datetime.fromtimestamp(validation_result.valid_after),
+        valid_until=datetime.fromtimestamp(validation_result.valid_until),
+        validated_at=datetime.fromtimestamp(validated_at),
+    )
+    try:
+        await session.commit()
+        return user_op_schema.id
+    except:
+        await session.rollback()
+        raise ValueError(f"Can not save to the DB.")
 
 
-def validate_user_op(
-    user_op: UserOperation, check_forbidden_opcodes=False
-) -> ValidationResult:
-    w3 = Web3(Web3.HTTPProvider(settings.rpc_server))
-    abi = Path(settings.entry_point_abi_path).read_text()
-    entry_point = w3.eth.contract(address=settings.entry_point_address, abi=abi)
-    call_data = entry_point.encodeABI("simulateValidation", [v for k, v in user_op])
-    result = w3.provider.make_request(
-        "debug_traceCall",
-        [
-            {
-                "from": ADDRESS_ZERO,
-                "to": settings.entry_point_address,
-                "data": call_data,
-            },
-            "latest",
-        ],
-    )["result"]
-
-    return_value = result["returnValue"]
-    selector = return_value[:8]
-    if selector == "f04297e9":  # ValidationResult
-        validation_result = ValidationResult(bytes.fromhex(return_value[8:]))
-    elif selector == "356877a3":  # ValidationResultWithAggregation
-        validation_result = ValidationResult(
-            bytes.fromhex(return_value[8:]), with_aggregation=True
-        )
-    else:
-        raise ValueError(f"Simulation failed with return data: {return_value}")
-
-    if check_forbidden_opcodes and utils.have_forbidden_opcodes(
-        result["result"], initializing=True if len(user_op.init_code) else False
-    ):
-        raise ValueError("UserOp have forbidden opcodes")
-
-    return validation_result
+if __name__ == "__main__":
+    cli()
