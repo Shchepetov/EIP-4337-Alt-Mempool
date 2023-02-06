@@ -71,6 +71,15 @@ class UserOpSchema(UserOp):
         d.pop("_sa_instance_state")
         return cls(**d)
 
+class SendRequest(BaseModel):
+    user_op: UserOp
+    entry_point: str
+
+    @validator("entry_point", pre=True)
+    def entry_point(cls, v):
+        if v not in settings.supportedEntryPoints:
+            raise ValueError("Must be in range [0, 2**256)")
+
 
 settings = Settings()
 app = FastAPI()

@@ -112,6 +112,18 @@ def validate_user_op(
     w3 = Web3(Web3.HTTPProvider(rpc_server))
     abi = (Path("abi") / "EntryPoint.abi").read_text()
     entry_point = w3.eth.contract(address=entry_point_address, abi=abi)
+
+    if user_op.init_code:
+        # Check if the first bytes of init_code is an address
+        if len(user_op.init_code) < 20:
+            raise ValueError('"init_code" is less than 20 bytes')
+    # Check if the sender is an existing contract
+    elif not w3.eth.get_code(user_op.sender):
+        raise ValueError(
+            '"sender" is not an existing contract but "init_code" is empty'
+        )
+
+    # Simulate validation
     call_data = entry_point.encodeABI(
         "simulateValidation", [tuple(v for k, v in user_op)]
     )
@@ -145,6 +157,7 @@ def validate_user_op(
         raise ValueError("UserOp is expired or will expire within the next 15 seconds")
 
     # TODO: validate stakes and storage access
+    # Check forbidden opcodes
     if check_forbidden_opcodes and have_forbidden_opcodes(
         result["result"], initializing=True if len(user_op.init_code) else False
     ):
