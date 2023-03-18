@@ -13,8 +13,9 @@ from db import service
 
 class Settings(BaseSettings):
     rpc_server: HttpUrl = "https://goerli.blockpi.network/v1/rpc/public"
-    entry_point_address: str = "0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f"
-    expires_soon_interval: int = 15
+    supported_entry_points: list = ["0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f"]
+    chain_id: int = 5
+    expires_soon_interval: int = 10
 
 
 class UserOp(BaseModel):
@@ -92,14 +93,14 @@ def db_init_models():
     print("Models initialized")
 
 
-@app.get("/api/get_all")
+@app.get("/api/eth_getUserOperations")
 async def get_all(session: AsyncSession = Depends(get_session)):
     user_op_schemes = await service.get_all(session)
     return [UserOpSchema.from_db(user_op_schema) for user_op_schema in user_op_schemes]
 
 
-@app.post("/api/user_op", response_model=int)
-async def create_item(user_op: UserOp, session: AsyncSession = Depends(get_session)):
+@app.post("/api/eth_sendUserOperation", response_model=int)
+async def send_user_operation(user_op: UserOp, session: AsyncSession = Depends(get_session)):
     validation_result, validated_at = utils.validate_user_op(
         user_op,
         settings.rpc_server,
@@ -121,7 +122,7 @@ async def create_item(user_op: UserOp, session: AsyncSession = Depends(get_sessi
         return user_op_schema.id
     except:
         await session.rollback()
-        raise ValueError(f"Can not save to the DB.")
+        raise ValueError(f"Can't save to the DB.")
 
 
 if __name__ == "__main__":
