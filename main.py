@@ -7,13 +7,14 @@ from pydantic import BaseModel, BaseSettings, HttpUrl, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import utils
-from db.base import init_models, get_session
 from db import service
+from db.base import init_models, get_session
 
 
 class Settings(BaseSettings):
     rpc_server: HttpUrl = "https://goerli.blockpi.network/v1/rpc/public"
-    supported_entry_points: list = ["0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f"]
+    supported_entry_points: list = [
+        "0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f"]
     chain_id: int = 5
     expires_soon_interval: int = 10
     last_user_ops_count: int = 100
@@ -55,7 +56,8 @@ class UserOp(BaseModel):
             raise ValueError("Must be in range [0, 2**256)")
         return v
 
-    @validator("init_code", "call_data", "paymaster_and_data", "signature", pre=True)
+    @validator("init_code", "call_data", "paymaster_and_data", "signature",
+               pre=True)
     def hex(cls, v):
         return bytes.fromhex(v) if isinstance(v, str) else v.hex()
 
@@ -73,6 +75,7 @@ class UserOpSchema(UserOp):
         d.pop("_sa_instance_state")
         return cls(**d)
 
+
 class SendRequest(BaseModel):
     user_op: UserOp
     entry_point: str
@@ -82,8 +85,10 @@ class SendRequest(BaseModel):
         if v not in settings.supportedEntryPoints:
             raise ValueError("Must be in range [0, 2**256)")
 
+
 class UserOpHash(BaseModel):
     hash: int
+
 
 settings = Settings()
 app = FastAPI()
@@ -97,7 +102,8 @@ def db_init_models():
 
 
 @app.post("/api/eth_sendUserOperation", response_model=int)
-async def send_user_operation(user_op: UserOp, session: AsyncSession = Depends(get_session)):
+async def send_user_operation(user_op: UserOp,
+                              session: AsyncSession = Depends(get_session)):
     validation_result, validated_at = utils.validate_user_op(
         user_op,
         settings.rpc_server,
@@ -144,10 +150,13 @@ async def get_user_op_receipt(request: UserOpHash,
 async def supported_entry_points(session: AsyncSession = Depends(get_session)):
     pass
 
+
 @app.get("/api/eth_lastUserOperations")
 async def last_user_ops(session: AsyncSession = Depends(get_session)):
-    user_op_schemes = await service.get_last_user_ops(session, settings.last_user_ops_count)
-    return [UserOpSchema.from_db(user_op_schema) for user_op_schema in user_op_schemes]
+    user_op_schemes = await service.get_last_user_ops(session,
+                                                      settings.last_user_ops_count)
+    return [UserOpSchema.from_db(user_op_schema) for user_op_schema in
+            user_op_schemes]
 
 
 if __name__ == "__main__":

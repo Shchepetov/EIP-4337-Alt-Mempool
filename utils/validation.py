@@ -40,7 +40,7 @@ class ValidationResult:
 
     def __init__(self, simulation_return_data: bytes, with_aggregation=False):
         data = (
-            simulation_return_data[32 * k : 32 * (k + 1)]
+            simulation_return_data[32 * k: 32 * (k + 1)]
             for k in range(len(simulation_return_data) // 32)
         )
 
@@ -68,18 +68,22 @@ class ValidationResult:
         if with_aggregation:
             self.actual_aggregator = "0x" + next(data).hex()[-40:]
             for field in ["aggregator_stake", "aggregator_unstake_delay_sec"]:
-                setattr(self, field, int.from_bytes(next(data), byteorder="big"))
+                setattr(self, field,
+                        int.from_bytes(next(data), byteorder="big"))
 
 
 def is_checksum_address(address):
     address = address.replace("0x", "")
     address_hash = keccak.new(digest_bits=256)
-    address_hash = address_hash.update(address.lower().encode("utf-8")).hexdigest()
+    address_hash = address_hash.update(
+        address.lower().encode("utf-8")).hexdigest()
 
     for i in range(0, 40):
         # The nth letter should be uppercase if the nth digit of casemap is 1
-        if (int(address_hash[i], 16) > 7 and address[i].upper() != address[i]) or (
-            int(address_hash[i], 16) <= 7 and address[i].lower() != address[i]
+        if (int(address_hash[i], 16) > 7 and address[i].upper() != address[
+            i]) or (
+                int(address_hash[i], 16) <= 7 and address[i].lower() != address[
+            i]
         ):
             return False
     return True
@@ -90,7 +94,7 @@ def is_address(address):
         # Check if it has the basic requirements of an address
         return False
     elif re.match(r"^(0x)?[0-9a-f]{40}$", address) or re.match(
-        r"^(0x)?[0-9A-F]{40}$", address
+            r"^(0x)?[0-9A-F]{40}$", address
     ):
         # If it's all small caps or all caps, return true
         return True
@@ -100,15 +104,15 @@ def is_address(address):
 
 
 def is_uint256(x):
-    return isinstance(x, int) and 0 <= x < 2**256
+    return isinstance(x, int) and 0 <= x < 2 ** 256
 
 
 def validate_user_op(
-    user_op,
-    rpc_server,
-    entry_point_address,
-    expires_soon_interval,
-    check_forbidden_opcodes=False,
+        user_op,
+        rpc_server,
+        entry_point_address,
+        expires_soon_interval,
+        check_forbidden_opcodes=False,
 ) -> (ValidationResult, int):
     w3 = Web3(Web3.HTTPProvider(rpc_server))
     abi = (Path("abi") / "EntryPoint.abi").read_text()
@@ -155,12 +159,14 @@ def validate_user_op(
     if validation_result.sig_failed and validation_result.valid_after <= current_time:
         raise ValueError("UserOp signing failed")
     if 0 < validation_result.valid_until < current_time + expires_soon_interval:
-        raise ValueError("UserOp is expired or will expire within the next 15 seconds")
+        raise ValueError(
+            "UserOp is expired or will expire within the next 15 seconds")
 
     # TODO: validate stakes and storage access
     # Check forbidden opcodes
     if check_forbidden_opcodes and have_forbidden_opcodes(
-        result["result"], initializing=True if len(user_op.init_code) else False
+            result["result"],
+            initializing=True if len(user_op.init_code) else False
     ):
         raise ValueError("UserOp have forbidden opcodes")
 
@@ -187,10 +193,10 @@ def have_forbidden_opcodes(struct_logs, initializing=False):
             continue
 
         if op == "GAS" and struct_logs[i + 1]["op"] not in (
-            "CALL",
-            "DELEGATECALL",
-            "CALLCODE",
-            "STATICCALL",
+                "CALL",
+                "DELEGATECALL",
+                "CALLCODE",
+                "STATICCALL",
         ):
             return True
 
