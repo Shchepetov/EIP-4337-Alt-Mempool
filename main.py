@@ -81,6 +81,8 @@ class SendRequest(BaseModel):
         if v not in settings.supportedEntryPoints:
             raise ValueError("Must be in range [0, 2**256)")
 
+class UserOpHash(BaseModel):
+    hash: int
 
 settings = Settings()
 app = FastAPI()
@@ -123,6 +125,29 @@ async def send_user_operation(user_op: UserOp, session: AsyncSession = Depends(g
     except:
         await session.rollback()
         raise ValueError(f"Can't save to the DB.")
+
+
+@app.get("/api/eth_estimateUserOperationGas")
+async def estimate_user_op(request: SendRequest,
+                           session: AsyncSession = Depends(get_session)):
+    pass
+
+
+@app.get("/api/eth_getUserOperationByHash")
+async def get_user_op_by_hash(request: UserOpHash,
+                              session: AsyncSession = Depends(get_session)):
+    pass
+
+
+@app.get("/api/eth_getUserOperationReceipt")
+async def get_user_op_receipt(request: UserOpHash,
+                              session: AsyncSession = Depends(get_session)):
+    pass
+
+
+@app.get("/api/eth_supportedEntryPoints")
+async def supported_entry_points(session: AsyncSession = Depends(get_session)):
+    pass
 
 
 if __name__ == "__main__":
