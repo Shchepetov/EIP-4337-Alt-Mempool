@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     supported_entry_points: list = ["0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f"]
     chain_id: int = 5
     expires_soon_interval: int = 10
+    last_user_ops_count: int = 100
 
 
 class UserOp(BaseModel):
@@ -95,12 +96,6 @@ def db_init_models():
     print("Models initialized")
 
 
-@app.get("/api/eth_getUserOperations")
-async def get_all(session: AsyncSession = Depends(get_session)):
-    user_op_schemes = await service.get_all(session)
-    return [UserOpSchema.from_db(user_op_schema) for user_op_schema in user_op_schemes]
-
-
 @app.post("/api/eth_sendUserOperation", response_model=int)
 async def send_user_operation(user_op: UserOp, session: AsyncSession = Depends(get_session)):
     validation_result, validated_at = utils.validate_user_op(
@@ -148,6 +143,11 @@ async def get_user_op_receipt(request: UserOpHash,
 @app.get("/api/eth_supportedEntryPoints")
 async def supported_entry_points(session: AsyncSession = Depends(get_session)):
     pass
+
+@app.get("/api/eth_lastUserOperations")
+async def last_user_ops(session: AsyncSession = Depends(get_session)):
+    user_op_schemes = await service.get_last_user_ops(session, settings.last_user_ops_count)
+    return [UserOpSchema.from_db(user_op_schema) for user_op_schema in user_op_schemes]
 
 
 if __name__ == "__main__":
