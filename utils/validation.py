@@ -103,10 +103,6 @@ def is_address(address):
         return is_checksum_address(address)
 
 
-def is_uint256(x):
-    return isinstance(x, int) and 0 <= x < 2 ** 256
-
-
 def validate_user_op(
         user_op,
         rpc_server,
