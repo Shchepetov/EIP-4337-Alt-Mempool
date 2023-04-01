@@ -1,13 +1,30 @@
-from sqlalchemy import BigInteger
 from sqlalchemy import Boolean
 from sqlalchemy import Column
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
+from sqlalchemy import LargeBinary
 from sqlalchemy import String
+from sqlalchemy import Table
+from sqlalchemy import TypeDecorator
 from sqlalchemy import TIMESTAMP
 from sqlalchemy.orm import relationship
 
 from .base import Base
+
+
+class Uint256(TypeDecorator):
+    impl = LargeBinary(32)
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if not isinstance(value, bytes):
+                value = value.to_bytes(32, byteorder="big")
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            value = int.from_bytes(value, byteorder="big")
+        return value
 
 
 class UserOp(Base):
@@ -16,14 +33,14 @@ class UserOp(Base):
     id = Column(Integer, autoincrement=True, primary_key=True)
     hash = Column(String(length=66), unique=True, index=True)
     sender = Column(String(length=42))
-    nonce = Column(BigInteger)
+    nonce = Column(Uint256)
     init_code = Column(String)
     call_data = Column(String)
-    call_gas_limit = Column(BigInteger)
-    verification_gas_limit = Column(BigInteger)
-    pre_verification_gas = Column(BigInteger)
-    max_fee_per_gas = Column(BigInteger)
-    max_priority_fee_per_gas = Column(BigInteger)
+    call_gas_limit = Column(Uint256)
+    verification_gas_limit = Column(Uint256)
+    pre_verification_gas = Column(Uint256)
+    max_fee_per_gas = Column(Uint256)
+    max_priority_fee_per_gas = Column(Uint256)
     paymaster_and_data = Column(String)
     entry_point = Column(String(length=42))
     signature = Column(String)
@@ -32,9 +49,7 @@ class UserOp(Base):
     expires_at = Column(TIMESTAMP, index=True)
     is_trusted = Column(Boolean)
     tx_hash = Column(String(length=66))
-    user_operations_bytecodes = relationship(
-        "UserOpBytecode", back_populates="user_ops"
-    )
+    bytecodes = relationship("Bytecode", secondary="user_ops_bytecodes")
 
 
 class Bytecode(Base):
@@ -43,23 +58,7 @@ class Bytecode(Base):
     id = Column(Integer, primary_key=True)
     bytecode_hash = Column(String(length=66), unique=True, index=True)
     is_trusted = Column(Boolean)
-    user_operations_bytecodes = relationship(
-        "UserOpBytecode", back_populates="bytecodes"
-    )
-
-
-class UserOpBytecode(Base):
-    __tablename__ = "user_ops_bytecodes"
-
-    id = Column(Integer, primary_key=True)
-    user_op_id = Column(Integer, ForeignKey("user_ops.id"), index=True)
-    bytecode_id = Column(Integer, ForeignKey("bytecodes.id"), index=True)
-    user_operations_bytecodes = relationship(
-        "UserOp", back_populates="user_ops_bytecodes"
-    )
-    user_operations_bytecodes = relationship(
-        "Bytecode", back_populates="user_ops_bytecodes"
-    )
+    user_ops = relationship("UserOp", secondary="user_ops_bytecodes")
 
 
 class EntryPoint(Base):
@@ -80,9 +79,9 @@ class User(Base):
     counter_updated_at = Column(TIMESTAMP)
 
 
-class Node(Base):
-    __tablename__ = "nodes"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(50))
-    ip_address = Column(String(15), unique=True, index=True)
+user_ops_bytecodes = Table(
+    "user_ops_bytecodes",
+    Base.metadata,
+    Column("user_op_id", Integer, ForeignKey("user_ops.id")),
+    Column("bytecode_id", Integer, ForeignKey("bytecodes.id")),
+)
