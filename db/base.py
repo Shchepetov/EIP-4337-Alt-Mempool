@@ -4,14 +4,14 @@ from sqlalchemy.orm import sessionmaker
 
 DATABASE_URL = "postgresql+asyncpg://localhost"
 
-engine = create_async_engine(DATABASE_URL, echo=True)
+app_engine = create_async_engine(DATABASE_URL, echo=True)
 Base = declarative_base()
 async_session = sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
+    app_engine, class_=AsyncSession, expire_on_commit=False
 )
 
 
-async def init_models():
+async def init_models(engine=app_engine):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)

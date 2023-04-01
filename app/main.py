@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 from datetime import datetime
 
 import typer
@@ -70,6 +71,25 @@ class UserOp(BaseModel):
             )
         return v
 
+    def hash(self) -> str:
+        data = "".join(
+            (hex(v) if isinstance(v, int) else v)[2:].zfill(64)
+            for v in [
+                self.sender,
+                self.nonce,
+                self.init_code,
+                self.call_data,
+                self.call_gas_limit,
+                self.verification_gas_limit,
+                self.pre_verification_gas,
+                self.max_fee_per_gas,
+                self.max_priority_fee_per_gas,
+                self.paymaster_and_data,
+            ]
+        )
+
+        return "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
+
 
 class SendRequest(BaseModel):
     user_op: UserOp
@@ -105,28 +125,30 @@ def db_init_models():
 async def send_user_operation(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
-    validation_result, validated_at = validate_user_op(
+    validation_result = validate_user_op(
         request.user_op,
         settings.rpc_server,
         request.entry_point,
         settings.expires_soon_interval,
         check_forbidden_opcodes=True,
     )
-    # TODO: Повторить пункт Client behavior upon receiving a UserOp
-    user_op_hash = await add_user_op(
+
+    user_op_hash = request.user_op.hash()
+    await add_user_op(
         session,
-        **dict(request.user_op),
-        sig_failed=validation_result.sig_failed,
+        request.user_op,
+        hash=user_op_hash,
         valid_after=datetime.fromtimestamp(validation_result.valid_after),
         valid_until=datetime.fromtimestamp(validation_result.valid_until),
-        validated_at=datetime.fromtimestamp(validated_at),
     )
+
     try:
         await session.commit()
         return user_op_hash
-    except:
+    except Exception as e:
+        print(f"Exception: {e}")
         await session.rollback()
-        raise HTTPException(status_code=422, detail="Can't save to the DB.")
+        raise HTTPException(status_code=500, detail="Can't save to the DB.")
 
 
 @app.post("/api/eth_estimateUserOperationGas")
