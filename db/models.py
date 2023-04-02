@@ -4,9 +4,9 @@ from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import LargeBinary
 from sqlalchemy import String
+from sqlalchemy import TIMESTAMP
 from sqlalchemy import Table
 from sqlalchemy import TypeDecorator
-from sqlalchemy import TIMESTAMP
 from sqlalchemy.orm import relationship
 
 from .base import Base
@@ -49,7 +49,9 @@ class UserOp(Base):
     expires_at = Column(TIMESTAMP, index=True)
     is_trusted = Column(Boolean)
     tx_hash = Column(String(length=66))
-    bytecodes = relationship("Bytecode", secondary="user_ops_bytecodes")
+    bytecodes = relationship(
+        "Bytecode", secondary="user_ops_bytecodes", back_populates="user_ops"
+    )
 
 
 class Bytecode(Base):
@@ -58,7 +60,9 @@ class Bytecode(Base):
     id = Column(Integer, primary_key=True)
     bytecode_hash = Column(String(length=66), unique=True, index=True)
     is_trusted = Column(Boolean)
-    user_ops = relationship("UserOp", secondary="user_ops_bytecodes")
+    user_ops = relationship(
+        "UserOp", secondary="user_ops_bytecodes", back_populates="bytecodes"
+    )
 
 
 class EntryPoint(Base):

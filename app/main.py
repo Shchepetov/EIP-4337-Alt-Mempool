@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     chain_id: int = 5
     expires_soon_interval: int = 10
     last_user_ops_count: int = 100
+    environment: str
 
 
 def address(v):
@@ -142,13 +143,15 @@ async def send_user_operation(
         valid_until=datetime.fromtimestamp(validation_result.valid_until),
     )
 
-    try:
-        await session.commit()
-        return user_op_hash
-    except Exception as e:
-        print(f"Exception: {e}")
-        await session.rollback()
-        raise HTTPException(status_code=500, detail="Can't save to the DB.")
+    await session.commit()
+    return user_op_hash
+    # try:
+    #     await session.commit()
+    #     return user_op_hash
+    # except Exception as e:
+    #     print(f"Exception: {e}")
+    #     await session.rollback()
+    #     raise HTTPException(status_code=500, detail="Can't save to the DB.")
 
 
 @app.post("/api/eth_estimateUserOperationGas")
