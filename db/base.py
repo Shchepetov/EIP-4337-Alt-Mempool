@@ -1,25 +1,13 @@
-import logging
-
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 
-logging.getLogger("sqlalchemy").setLevel(logging.WARNING)
+from app.config import settings
 
-DATABASE_URL = "postgresql+asyncpg://localhost"
+DB_URL = f"{settings.db_url_base}/{settings.app_db_name if settings.environment == 'PRODUCT' else settings.test_db_name}"
+engine = create_async_engine(DB_URL)
 
-app_engine = create_async_engine(DATABASE_URL, echo=True)
 Base = declarative_base()
+
 async_session = sessionmaker(
-    app_engine, class_=AsyncSession, expire_on_commit=False
+    engine, class_=AsyncSession, expire_on_commit=False
 )
-
-
-async def init_models(engine=app_engine):
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
-        await conn.run_sync(Base.metadata.create_all)
-
-
-async def get_session() -> AsyncSession:
-    async with async_session() as session:
-        yield session

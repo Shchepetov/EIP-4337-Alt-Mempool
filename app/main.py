@@ -1,26 +1,14 @@
-import asyncio
 import hashlib
 from datetime import datetime
 
-import typer
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, BaseSettings, HttpUrl, validator
+from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from db.base import init_models, get_session
+from app.config import settings
 from db.service import add_user_op, get_last_user_ops
+from db.utils import get_session
 from utils.validation import is_address, is_hex, validate_user_op
-
-
-class Settings(BaseSettings):
-    rpc_server: HttpUrl = "https://goerli.blockpi.network/v1/rpc/public"
-    supported_entry_points: list = [
-        "0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f",
-    ]
-    chain_id: int = 5
-    expires_soon_interval: int = 10
-    last_user_ops_count: int = 100
-    environment: str
 
 
 def address(v):
@@ -111,15 +99,7 @@ class UserOpHash(BaseModel):
     hash: int
 
 
-settings = Settings()
 app = FastAPI()
-cli = typer.Typer()
-
-
-@cli.command()
-def db_init_models():
-    asyncio.run(init_models())
-    print("Models initialized")
 
 
 @app.post("/api/eth_sendUserOperation", response_model=str)
@@ -186,7 +166,3 @@ async def last_user_ops(session: AsyncSession = Depends(get_session)):
         session, settings.last_user_ops_count
     )
     return [user_op_schema for user_op_schema in user_op_schemes]
-
-
-if __name__ == "__main__":
-    cli()

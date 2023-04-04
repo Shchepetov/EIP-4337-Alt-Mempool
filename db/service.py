@@ -1,7 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from .models import UserOp
+from db.models import UserOp
 
 
 async def add_user_op(session: AsyncSession, user_op, **extra_data):
