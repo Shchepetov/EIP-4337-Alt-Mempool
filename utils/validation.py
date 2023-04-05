@@ -5,6 +5,7 @@ from Crypto.Hash import keccak
 from fastapi import HTTPException
 
 import db.service
+import web3
 
 
 class ValidationResult:
@@ -16,7 +17,7 @@ class ValidationResult:
 def validate_address(v):
     v = validate_hex(v)
     if v == "0x0":
-        return "0x0000000000000000000000000000000000000000"
+        return web3.constants.ADDRESS_ZERO
     if not is_address(v):
         raise HTTPException(
             status_code=422, detail="Must be an Ethereum address"
@@ -98,4 +99,4 @@ async def validate_user_op(
 
 
 async def is_unique(user_op, session) -> bool:
-    return await db.service.get_user_op(session, user_op.hash) is None
+    return await db.service.get_user_op_by_hash(session, user_op.hash) is None

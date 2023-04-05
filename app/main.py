@@ -1,12 +1,13 @@
 import hashlib
 from datetime import datetime
 
+import web3
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Extra, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 import db.service
+from app.config import settings
 from db.utils import get_session
 from utils.validation import validate_address, validate_hex, validate_user_op
 
@@ -117,6 +118,11 @@ async def send_user_operation(
         check_forbidden_opcodes=True,
     )
 
+    if request.user_op.sender != web3.constants.ADDRESS_ZERO:
+        await db.service.delete_user_op_by_sender(
+            session, request.user_op.sender
+        )
+
     await db.service.add_user_op(
         session,
         request.user_op,
@@ -147,7 +153,7 @@ async def estimate_user_op(
 async def get_user_op_by_hash(
     request: UserOpHash, session: AsyncSession = Depends(get_session)
 ):
-    user_op_schema = await db.service.get_user_op(session, request.hash)
+    user_op_schema = await db.service.get_user_op_by_hash(session, request.hash)
     return user_op_schema
 
 

@@ -180,3 +180,33 @@ async def test_same_user_op_with_different_signature_rejected(
     await client.send_user_op(
         test_request, expected_error_message="UserOp is already in the pool"
     )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_replace_user_op_with_same_sender(client, test_request: dict):
+    user_op_1_hash = await client.send_user_op(test_request)
+
+    test_request["user_op"]["nonce"] = test_request["user_op"]["nonce"] + "1234"
+    user_op_2_hash = await client.send_user_op(test_request, status_code=200)
+
+    assert await client.get_user_op(user_op_1_hash) is None
+
+    user_op = await client.get_user_op(user_op_2_hash, status_code=200)
+    assert user_op["hash"] == user_op_2_hash
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_not_replace_user_op_with_sender_0x0(client, test_request: dict):
+    test_request["user_op"]["sender"] = "0x0"
+    user_op_1_hash = await client.send_user_op(test_request)
+
+    test_request["user_op"]["nonce"] = test_request["user_op"]["nonce"] + "1234"
+    user_op_2_hash = await client.send_user_op(test_request)
+
+    user_op_1 = await client.get_user_op(user_op_1_hash)
+    assert user_op_1["hash"] == user_op_1_hash
+
+    user_op_2 = await client.get_user_op(user_op_2_hash)
+    assert user_op_2["hash"] == user_op_2_hash
