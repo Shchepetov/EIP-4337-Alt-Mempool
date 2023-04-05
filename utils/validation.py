@@ -4,6 +4,8 @@ import time
 from Crypto.Hash import keccak
 from fastapi import HTTPException
 
+import db.service
+
 
 class ValidationResult:
     sig_failed: bool
@@ -16,7 +18,9 @@ def validate_address(v):
     if v == "0x0":
         return "0x0000000000000000000000000000000000000000"
     if not is_address(v):
-        raise HTTPException(status_code=422, detail="Must be Ethereum address")
+        raise HTTPException(
+            status_code=422, detail="Must be an Ethereum address"
+        )
 
     return v
 
@@ -54,25 +58,31 @@ def is_checksum_address(s):
 
 
 def validate_hex(v):
-    if not re.fullmatch(r"0x[0-9a-fA-F]+", v):
+    if not (isinstance(v, str) and re.fullmatch(r"0x[0-9a-fA-F]+", v)):
         raise HTTPException(status_code=422, detail="Not a hex value")
 
     return v
 
 
-def validate_user_op(
+async def validate_user_op(
+    session,
     user_op,
     rpc_server,
     entry_point_address,
     expires_soon_interval,
     check_forbidden_opcodes=False,
 ) -> (ValidationResult):
+    if not await is_unique(user_op, session):
+        raise HTTPException(
+            status_code=422,
+            detail="UserOp is already in the pool",
+        )
+
     validation_result = ValidationResult()
     validation_result.valid_after = 0
     validation_result.valid_until = 0
     validation_result.sig_failed = False
     current_time = time.time()
-
     if (
         validation_result.sig_failed
         and validation_result.valid_after <= current_time
@@ -85,3 +95,7 @@ def validate_user_op(
         )
 
     return validation_result
+
+
+async def is_unique(user_op, session) -> bool:
+    return await db.service.get_user_op(session, user_op.hash) is None

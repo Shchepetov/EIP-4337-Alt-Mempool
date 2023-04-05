@@ -20,11 +20,15 @@ async def test_integer_fields_rejected(client, test_request: dict):
         incorrect_request["user_op"][field] = int(
             test_request["user_op"][field], 16
         )
-        await client.send_user_op(incorrect_request, status_code=422)
+        await client.send_user_op(
+            incorrect_request, expected_error_message="Not a hex value"
+        )
 
     incorrect_request = copy.deepcopy(test_request)
     incorrect_request["entry_point"] = int(test_request["entry_point"], 16)
-    await client.send_user_op(incorrect_request, status_code=422)
+    await client.send_user_op(
+        incorrect_request, expected_error_message="Not a hex value"
+    )
 
 
 @pytest.mark.eth_sendUserOperation
@@ -35,22 +39,30 @@ async def test_non_hexadecimal_fields_rejected(client, test_request: dict):
         incorrect_request["user_op"][field] = test_request["user_op"][
             field
         ].replace("0x", "")
-        await client.send_user_op(incorrect_request, status_code=422)
+        await client.send_user_op(
+            incorrect_request, expected_error_message="Not a hex value"
+        )
 
         incorrect_request["user_op"][field] = (
             test_request["user_op"][field][:-1] + "g"
         )
-        await client.send_user_op(incorrect_request, status_code=422)
+        await client.send_user_op(
+            incorrect_request, expected_error_message="Not a hex value"
+        )
 
     incorrect_request = copy.deepcopy(test_request)
     incorrect_request["entry_point"] = test_request["entry_point"].replace(
         "0x", ""
     )
-    await client.send_user_op(incorrect_request, status_code=422)
+    await client.send_user_op(
+        incorrect_request, expected_error_message="Not a hex value"
+    )
 
     incorrect_request = copy.deepcopy(test_request)
     incorrect_request["entry_point"] = test_request["entry_point"][:-1] + "g"
-    await client.send_user_op(incorrect_request, status_code=422)
+    await client.send_user_op(
+        incorrect_request, expected_error_message="Not a hex value"
+    )
 
 
 @pytest.mark.eth_sendUserOperation
@@ -66,7 +78,9 @@ async def test_address_less_than_20_bytes_rejected(client, test_request: dict):
     test_request["user_op"][
         "sender"
     ] = "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D427"
-    await client.send_user_op(test_request, status_code=422)
+    await client.send_user_op(
+        test_request, expected_error_message="Must be an Ethereum address"
+    )
 
 
 @pytest.mark.eth_sendUserOperation
@@ -76,8 +90,10 @@ async def test_address_with_incorrect_checksum_rejected(
 ):
     test_request["user_op"][
         "sender"
-    ] = "4cDbDf63ae2215eDD6B673F9DABFf789A13D4270"
-    await client.send_user_op(test_request, status_code=422)
+    ] = "0x4cDbDf63ae2215eDD6B673F9DABFf789A13D4270"
+    await client.send_user_op(
+        test_request, expected_error_message="Must be an Ethereum address"
+    )
 
 
 @pytest.mark.eth_sendUserOperation
@@ -95,7 +111,10 @@ async def test_values_larger_uint256_in_integer_fields_rejected(
     ):
         incorrect_request = copy.deepcopy(test_request)
         incorrect_request["user_op"][field] = hex(2**256)
-        await client.send_user_op(incorrect_request, status_code=422)
+        await client.send_user_op(
+            incorrect_request,
+            expected_error_message="Must be in range [0, 2**256)",
+        )
 
 
 @pytest.mark.eth_sendUserOperation
@@ -113,7 +132,9 @@ async def test_odd_hexadecimal_chars_in_byte_fields_rejected(
         incorrect_request["user_op"][field] = (
             test_request["user_op"][field] + "0"
         )
-        await client.send_user_op(incorrect_request, status_code=422)
+        await client.send_user_op(
+            incorrect_request, expected_error_message="Incorrect bytes string"
+        )
 
 
 @pytest.mark.eth_sendUserOperation
@@ -136,3 +157,26 @@ async def test_sent_user_op_saved(client, test_request: dict):
             assert user_op[field] == test_request["user_op"][field]
 
     assert user_op["entry_point"] == test_request["entry_point"]
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_same_user_op_rejected(client, test_request: dict):
+    await client.send_user_op(test_request)
+    await client.send_user_op(
+        test_request, expected_error_message="UserOp is already in the pool"
+    )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_same_user_op_with_different_signature_rejected(
+    client, test_request: dict
+):
+    await client.send_user_op(test_request)
+    test_request["user_op"]["signature"] = (
+        test_request["user_op"]["signature"] + "1234"
+    )
+    await client.send_user_op(
+        test_request, expected_error_message="UserOp is already in the pool"
+    )

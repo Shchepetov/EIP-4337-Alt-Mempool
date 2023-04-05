@@ -2,7 +2,7 @@ import hashlib
 from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, Extra, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -25,7 +25,7 @@ class UserOp(BaseModel):
     signature: str
 
     class Config:
-        allow_mutation = False
+        extra = Extra.allow
 
     _validate_address = validator("sender", allow_reuse=True)(validate_address)
 
@@ -58,7 +58,7 @@ class UserOp(BaseModel):
             )
         return v
 
-    def hash(self) -> str:
+    def fill_hash(self) -> None:
         data = "".join(
             (hex(v) if isinstance(v, int) else v)[2:].zfill(64)
             for v in [
@@ -75,15 +75,12 @@ class UserOp(BaseModel):
             ]
         )
 
-        return "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
+        self.hash = "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
 
 
 class SendRequest(BaseModel):
     user_op: UserOp
     entry_point: str
-
-    class Config:
-        allow_mutation = False
 
     _validate_address = validator("entry_point", allow_reuse=True)(
         validate_address
@@ -99,9 +96,6 @@ class SendRequest(BaseModel):
 
 
 class UserOpHash(BaseModel):
-    class Config:
-        allow_mutation = False
-
     _validate_hash = validator("hash", allow_reuse=True)(validate_hex)
     hash: str
 
@@ -113,7 +107,9 @@ app = FastAPI()
 async def send_user_operation(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
-    validation_result = validate_user_op(
+    request.user_op.fill_hash()
+    validation_result = await validate_user_op(
+        session,
         request.user_op,
         settings.rpc_server,
         request.entry_point,
@@ -121,18 +117,16 @@ async def send_user_operation(
         check_forbidden_opcodes=True,
     )
 
-    user_op_hash = request.user_op.hash()
     await db.service.add_user_op(
         session,
         request.user_op,
         entry_point=request.entry_point,
-        hash=user_op_hash,
         valid_after=datetime.fromtimestamp(validation_result.valid_after),
         valid_until=datetime.fromtimestamp(validation_result.valid_until),
     )
 
     await session.commit()
-    return user_op_hash
+    return request.user_op.hash
     # try:
     #     await session.commit()
     #     return user_op_hash

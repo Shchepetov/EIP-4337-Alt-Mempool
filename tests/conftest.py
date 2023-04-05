@@ -34,26 +34,34 @@ class AppClient:
     def __init__(self, client: AsyncClient):
         self.client = client
 
-    async def send_user_op(self, request: dict, status_code=None) -> str:
+    async def send_user_op(self, request: dict, **kwargs) -> str:
         return await self._make_request(
-            "eth_sendUserOperation", json=request, status_code=status_code
+            "eth_sendUserOperation", json=request, **kwargs
         )
 
-    async def get_user_op(self, hash_: str, status_code=None) -> dict:
+    async def get_user_op(self, hash_: str, **kwargs) -> dict:
         return await self._make_request(
-            "eth_getUserOperationByHash",
-            json={"hash": hash_},
-            status_code=status_code,
+            "eth_getUserOperationByHash", json={"hash": hash_}, **kwargs
         )
 
-    async def _make_request(self, method: str, json: dict, status_code=None):
+    async def _make_request(
+        self,
+        method: str,
+        json: dict,
+        status_code=None,
+        expected_error_message=None,
+    ):
         url = f"/api/{method}"
         response = await self.client.post(url, json=json)
+        response_json = response.json()
 
         if status_code is not None:
             assert response.status_code == status_code
 
-        return response.json()
+        if expected_error_message is not None:
+            assert expected_error_message in response_json["detail"]
+
+        return response_json
 
 
 @pytest.fixture(scope="session")
