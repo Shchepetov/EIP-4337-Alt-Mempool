@@ -6,7 +6,7 @@ from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from db.service import add_user_op, get_last_user_ops
+import db.service
 from db.utils import get_session
 from utils.validation import validate_address, validate_hex, validate_user_op
 
@@ -99,7 +99,11 @@ class SendRequest(BaseModel):
 
 
 class UserOpHash(BaseModel):
-    hash: int
+    class Config:
+        allow_mutation = False
+
+    _validate_hash = validator("hash", allow_reuse=True)(validate_hex)
+    hash: str
 
 
 app = FastAPI()
@@ -118,7 +122,7 @@ async def send_user_operation(
     )
 
     user_op_hash = request.user_op.hash()
-    await add_user_op(
+    await db.service.add_user_op(
         session,
         request.user_op,
         entry_point=request.entry_point,
@@ -149,7 +153,8 @@ async def estimate_user_op(
 async def get_user_op_by_hash(
     request: UserOpHash, session: AsyncSession = Depends(get_session)
 ):
-    pass
+    user_op_schema = await db.service.get_user_op(session, request.hash)
+    return user_op_schema
 
 
 @app.post("/api/eth_getUserOperationReceipt")
@@ -166,7 +171,7 @@ async def supported_entry_points(session: AsyncSession = Depends(get_session)):
 
 @app.post("/api/eth_lastUserOperations")
 async def last_user_ops(session: AsyncSession = Depends(get_session)):
-    user_op_schemes = await get_last_user_ops(
+    user_op_schemes = await db.service.get_last_user_ops(
         session, settings.last_user_ops_count
     )
     return [user_op_schema for user_op_schema in user_op_schemes]

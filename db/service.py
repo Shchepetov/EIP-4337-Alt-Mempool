@@ -11,6 +11,11 @@ async def add_user_op(session: AsyncSession, user_op, **extra_data):
     session.add(user_op_schema)
 
 
+async def get_user_op(session: AsyncSession, hash_: str) -> UserOp:
+    result = await session.execute(select(UserOp).where(UserOp.hash == hash_))
+    return result.scalars().first()
+
+
 async def get_last_user_ops(session: AsyncSession, count: int) -> list[UserOp]:
     result = await session.execute(select(UserOp).limit(count))
     return result.scalars().all()
