@@ -12,7 +12,7 @@ from app.main import app
 from db.base import engine, async_session, Base
 from db.utils import init_models
 
-SEND_DATA = {
+TEST_SEND_REQUEST = {
     "user_op": {
         "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
         "nonce": "0x00000000001000000000001000000",
@@ -28,6 +28,32 @@ SEND_DATA = {
     },
     "entry_point": "0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f",
 }
+
+
+class AppClient:
+    def __init__(self, client: AsyncClient):
+        self.client = client
+
+    async def send_user_op(self, request: dict, status_code=None) -> str:
+        return await self._make_request(
+            "eth_sendUserOperation", json=request, status_code=status_code
+        )
+
+    async def get_user_op(self, hash_: str, status_code=None) -> dict:
+        return await self._make_request(
+            "eth_getUserOperationByHash",
+            json={"hash": hash_},
+            status_code=status_code,
+        )
+
+    async def _make_request(self, method: str, json: dict, status_code=None):
+        url = f"/api/{method}"
+        response = await self.client.post(url, json=json)
+
+        if status_code is not None:
+            assert response.status_code == status_code
+
+        return response.json()
 
 
 @pytest.fixture(scope="session")
@@ -57,11 +83,11 @@ async def session(
 
 
 @pytest_asyncio.fixture(scope="session")
-async def client() -> AsyncGenerator[AsyncClient, None]:
+async def client() -> AppClient:
     async with AsyncClient(app=app, base_url="https://localhost") as client:
-        yield client
+        yield AppClient(client)
 
 
 @pytest.fixture(scope="function")
 def test_request():
-    yield copy.deepcopy(SEND_DATA)
+    yield copy.deepcopy(TEST_SEND_REQUEST)
