@@ -8,14 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from db.service import add_user_op, get_last_user_ops
 from db.utils import get_session
-from utils.validation import is_address, is_hex, validate_user_op
-
-
-def address(v):
-    if not is_address(v):
-        raise HTTPException(status_code=422, detail="Must be Ethereum address")
-
-    return v
+from utils.validation import validate_address, validate_hex, validate_user_op
 
 
 class UserOp(BaseModel):
@@ -31,7 +24,10 @@ class UserOp(BaseModel):
     paymaster_and_data: str
     signature: str
 
-    _validate_sender = validator("sender", allow_reuse=True)(address)
+    class Config:
+        allow_mutation = False
+
+    _validate_address = validator("sender", allow_reuse=True)(validate_address)
 
     @validator(
         "nonce",
@@ -43,6 +39,7 @@ class UserOp(BaseModel):
         pre=True,
     )
     def uint256(cls, v):
+        validate_hex(v)
         v = int(v, 16)
         if not 0 <= v < 2**256:
             raise HTTPException(
@@ -54,7 +51,8 @@ class UserOp(BaseModel):
         "init_code", "call_data", "paymaster_and_data", "signature", pre=True
     )
     def bytes_(cls, v):
-        if not (is_hex(v) and (len(v) % 2 == 0 or v == "0x0")):
+        validate_hex(v)
+        if not (len(v) % 2 == 0 or v == "0x0"):
             raise HTTPException(
                 status_code=422, detail="Incorrect bytes string"
             )
@@ -84,9 +82,14 @@ class SendRequest(BaseModel):
     user_op: UserOp
     entry_point: str
 
-    _validate_entry_point = validator("entry_point", allow_reuse=True)(address)
+    class Config:
+        allow_mutation = False
 
-    @validator("entry_point", pre=True)
+    _validate_address = validator("entry_point", allow_reuse=True)(
+        validate_address
+    )
+
+    @validator("entry_point")
     def supported_entry_point(cls, v):
         if v.lower() not in map(str.lower, settings.supported_entry_points):
             raise HTTPException(
