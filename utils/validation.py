@@ -11,6 +11,30 @@ class ValidationResult:
     valid_until: int
 
 
+def validate_address(v):
+    v = validate_hex(v)
+    if v == "0x0":
+        return "0x0000000000000000000000000000000000000000"
+    if not is_address(v):
+        raise HTTPException(status_code=422, detail="Must be Ethereum address")
+
+    return v
+
+
+def is_address(s):
+    if not re.match(r"^(0x)[0-9a-f]{40}$", s, flags=re.IGNORECASE):
+        # Check if it has the basic requirements of an address
+        return False
+    elif re.match(r"^(0x)[0-9a-f]{40}$", s) or re.match(
+        r"^(0x)[0-9A-F]{40}$", s
+    ):
+        # If it's all small caps or all caps, return true
+        return True
+    else:
+        # Otherwise check each case
+        return is_checksum_address(s)
+
+
 def is_checksum_address(s):
     address = s.replace("0x", "")
     address_hash = keccak.new(digest_bits=256)
@@ -29,22 +53,11 @@ def is_checksum_address(s):
     return True
 
 
-def is_address(s):
-    if not re.match(r"^(0x)?[0-9a-f]{40}$", s, flags=re.IGNORECASE):
-        # Check if it has the basic requirements of an address
-        return False
-    elif re.match(r"^(0x)?[0-9a-f]{40}$", s) or re.match(
-        r"^(0x)?[0-9A-F]{40}$", s
-    ):
-        # If it's all small caps or all caps, return true
-        return True
-    else:
-        # Otherwise check each case
-        return is_checksum_address(s)
+def validate_hex(v):
+    if not re.fullmatch(r"0x[0-9a-fA-F]+", v):
+        raise HTTPException(status_code=422, detail="Not a hex value")
 
-
-def is_hex(s):
-    return bool(re.fullmatch(r"0x[0-9a-fA-F]+", s))
+    return v
 
 
 def validate_user_op(
