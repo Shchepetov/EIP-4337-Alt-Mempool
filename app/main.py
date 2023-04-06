@@ -44,7 +44,7 @@ class UserOp(BaseModel):
         v = int(v, 16)
         if not 0 <= v < 2**256:
             raise HTTPException(
-                status_code=422, detail="Must be in range [0, 2**256)"
+                status_code=422, detail="Must be in range [0, 2**256)."
             )
         return v
 
@@ -55,7 +55,7 @@ class UserOp(BaseModel):
         validate_hex(v)
         if not (len(v) % 2 == 0 or v == "0x0"):
             raise HTTPException(
-                status_code=422, detail="Incorrect bytes string"
+                status_code=422, detail="Incorrect bytes string."
             )
         return v
 
@@ -91,7 +91,7 @@ class SendRequest(BaseModel):
     def supported_entry_point(cls, v):
         if v.lower() not in map(str.lower, settings.supported_entry_points):
             raise HTTPException(
-                status_code=422, detail="EntryPoint is not supported"
+                status_code=422, detail="EntryPoint is not supported."
             )
         return v
 
@@ -109,6 +109,7 @@ async def send_user_operation(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
     request.user_op.fill_hash()
+
     validation_result = await validate_user_op(
         session,
         request.user_op,
@@ -133,13 +134,6 @@ async def send_user_operation(
 
     await session.commit()
     return request.user_op.hash
-    # try:
-    #     await session.commit()
-    #     return user_op_hash
-    # except Exception as e:
-    #     print(f"Exception: {e}")
-    #     await session.rollback()
-    #     raise HTTPException(status_code=500, detail="Can't save to the DB.")
 
 
 @app.post("/api/eth_estimateUserOperationGas")

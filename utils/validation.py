@@ -1,5 +1,4 @@
 import re
-import time
 
 from Crypto.Hash import keccak
 from fastapi import HTTPException
@@ -8,7 +7,7 @@ import db.service
 import web3
 
 
-class ValidationResult:
+class SimulationResult:
     sig_failed: bool
     valid_after: int
     valid_until: int
@@ -20,7 +19,7 @@ def validate_address(v):
         return web3.constants.ADDRESS_ZERO
     if not is_address(v):
         raise HTTPException(
-            status_code=422, detail="Must be an Ethereum address"
+            status_code=422, detail="Must be an Ethereum address."
         )
 
     return v
@@ -60,7 +59,7 @@ def is_checksum_address(s):
 
 def validate_hex(v):
     if not (isinstance(v, str) and re.fullmatch(r"0x[0-9a-fA-F]+", v)):
-        raise HTTPException(status_code=422, detail="Not a hex value")
+        raise HTTPException(status_code=422, detail="Not a hex value.")
 
     return v
 
@@ -72,31 +71,44 @@ async def validate_user_op(
     entry_point_address,
     expires_soon_interval,
     check_forbidden_opcodes=False,
-) -> (ValidationResult):
+) -> (SimulationResult):
+    provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
+    await validate_before_simulation(provider, session, user_op)
+
+    simulation_result = SimulationResult()
+    simulation_result.valid_after = 0
+    simulation_result.valid_until = 0
+    simulation_result.sig_failed = False
+
+    return simulation_result
+
+
+async def validate_before_simulation(provider, session, user_op):
     if not await is_unique(user_op, session):
         raise HTTPException(
             status_code=422,
-            detail="UserOp is already in the pool",
+            detail="UserOp is already in the pool.",
         )
 
-    validation_result = ValidationResult()
-    validation_result.valid_after = 0
-    validation_result.valid_until = 0
-    validation_result.sig_failed = False
-    current_time = time.time()
-    if (
-        validation_result.sig_failed
-        and validation_result.valid_after <= current_time
-    ):
-        raise HTTPException(status_code=422, detail="UserOp signing failed")
-    if 0 < validation_result.valid_until < current_time + expires_soon_interval:
-        raise HTTPException(
-            status_code=422,
-            detail="UserOp is expired or will expire within the next 15 seconds",
-        )
+    if not is_contract(provider, user_op.sender):
+        factory_address = user_op.init_code[:42]
+        if not (
+            is_address(factory_address)
+            and is_contract(provider, factory_address)
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail="'sender' and the first 20 bytes of 'init_code' do not represent a smart contract address.",
+            )
 
-    return validation_result
 
 
 async def is_unique(user_op, session) -> bool:
     return await db.service.get_user_op_by_hash(session, user_op.hash) is None
+
+
+def is_contract(provider, address) -> bool:
+    if address == web3.constants.ADDRESS_ZERO:
+        return False
+    bytecode = provider.eth.getCode(address)
+    return bool(len(bytecode))
