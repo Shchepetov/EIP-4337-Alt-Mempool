@@ -8,13 +8,13 @@ LOGGER = logging.getLogger(__name__)
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_create_user_op(client, test_request: dict):
+async def test_accepts_user_op(client, test_request: dict):
     await client.send_user_op(test_request, status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_integer_fields_rejected(client, test_request: dict):
+async def test_rejects_user_op_with_integers_in_fields(client, test_request: dict):
     for field in test_request["user_op"].keys():
         incorrect_request = copy.deepcopy(test_request)
         incorrect_request["user_op"][field] = int(
@@ -33,7 +33,7 @@ async def test_integer_fields_rejected(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_non_hexadecimal_fields_rejected(client, test_request: dict):
+async def test_rejects_user_op_with_non_hexadecimal_values_in_fields(client, test_request: dict):
     for field in test_request["user_op"].keys():
         incorrect_request = copy.deepcopy(test_request)
         incorrect_request["user_op"][field] = test_request["user_op"][
@@ -67,14 +67,7 @@ async def test_non_hexadecimal_fields_rejected(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_address_0x0_accepted(client, test_request: dict):
-    test_request["user_op"]["sender"] = "0x0"
-    await client.send_user_op(test_request, status_code=200)
-
-
-@pytest.mark.eth_sendUserOperation
-@pytest.mark.asyncio
-async def test_address_less_than_20_bytes_rejected(client, test_request: dict):
+async def test_rejects_user_op_with_values_less_than_20_bytes_in_address_fields(client, test_request: dict):
     test_request["user_op"][
         "sender"
     ] = "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D427"
@@ -82,10 +75,15 @@ async def test_address_less_than_20_bytes_rejected(client, test_request: dict):
         test_request, expected_error_message="Must be an Ethereum address"
     )
 
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_accepts_user_op_with_0x0_sender(client, test_request: dict):
+    test_request["user_op"]["sender"] = "0x0"
+    await client.send_user_op(test_request, status_code=200)
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_address_with_incorrect_checksum_rejected(
+async def test_rejects_user_op_with_incorrect_checksum_in_address_fields(
     client, test_request: dict
 ):
     test_request["user_op"][
@@ -98,7 +96,7 @@ async def test_address_with_incorrect_checksum_rejected(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_values_larger_uint256_in_integer_fields_rejected(
+async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
     client, test_request: dict
 ):
     for field in (
@@ -119,7 +117,7 @@ async def test_values_larger_uint256_in_integer_fields_rejected(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_odd_hexadecimal_chars_in_byte_fields_rejected(
+async def test_rejects_user_op_with_odd_hexadecimal_chars_in_byte_fields(
     client, test_request: dict
 ):
     for field in (
@@ -139,7 +137,7 @@ async def test_odd_hexadecimal_chars_in_byte_fields_rejected(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_sent_user_op_saved(client, test_request: dict):
+async def test_saves_correct_user_op(client, test_request: dict):
     user_op_hash = await client.send_user_op(test_request)
     user_op = await client.get_user_op(user_op_hash, status_code=200)
 
@@ -161,7 +159,7 @@ async def test_sent_user_op_saved(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_same_user_op_rejected(client, test_request: dict):
+async def test_rejects_same_user_op(client, test_request: dict):
     await client.send_user_op(test_request)
     await client.send_user_op(
         test_request, expected_error_message="UserOp is already in the pool"
@@ -170,7 +168,7 @@ async def test_same_user_op_rejected(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_same_user_op_with_different_signature_rejected(
+async def test_rejects_same_user_op_with_different_signature(
     client, test_request: dict
 ):
     await client.send_user_op(test_request)
@@ -184,7 +182,7 @@ async def test_same_user_op_with_different_signature_rejected(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_replace_user_op_with_same_sender(client, test_request: dict):
+async def test_replaces_user_op_with_same_sender(client, test_request: dict):
     user_op_1_hash = await client.send_user_op(test_request)
 
     test_request["user_op"]["nonce"] = test_request["user_op"]["nonce"] + "1234"
@@ -198,7 +196,7 @@ async def test_replace_user_op_with_same_sender(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_not_replace_user_op_with_sender_0x0(client, test_request: dict):
+async def test_not_replaces_user_op_with_sender_0x0(client, test_request: dict):
     test_request["user_op"]["sender"] = "0x0"
     user_op_1_hash = await client.send_user_op(test_request)
 
