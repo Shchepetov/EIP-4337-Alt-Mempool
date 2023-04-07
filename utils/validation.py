@@ -6,6 +6,7 @@ from fastapi import HTTPException
 
 import db.service
 from app.config import settings
+from app.constants import CALL_GAS
 
 
 class SimulationResult:
@@ -110,6 +111,13 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
                 detail="The paymaster does not have sufficient funds to pay "
                 "for the UserOp.",
             )
+
+    if user_op.call_gas_limit < CALL_GAS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'call_gas_limit' is less than {CALL_GAS}, which is the "
+            "minimum gas cost of a 'CALL' with non-zero value.",
+        )
 
 
 async def is_unique(user_op, session) -> bool:

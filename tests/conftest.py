@@ -17,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.config as config
 import db.utils
 from app.config import Settings
+from app.constants import CALL_GAS
 from db.base import engine, async_session, Base
 
 
@@ -35,11 +36,11 @@ class AppClient:
         )
 
     async def _make_request(
-            self,
-            method: str,
-            json: dict,
-            status_code=None,
-            expected_error_message=None,
+        self,
+        method: str,
+        json: dict,
+        status_code=None,
+        expected_error_message=None,
     ):
         url = f"/api/{method}"
         response = await self.client.post(url, json=json)
@@ -105,7 +106,7 @@ async def client(contracts) -> AppClient:
 
 @pytest_asyncio.fixture(autouse=True)
 async def session(
-        init_models,
+    init_models,
 ) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
@@ -127,7 +128,7 @@ def test_request(contracts):
             "nonce": "0x00000000001000000000001000000",
             "init_code": contracts.simple_account_factory.address,
             "call_data": "0x000000000001",
-            "call_gas_limit": "0x000000000001",
+            "call_gas_limit": hex(CALL_GAS),
             "verification_gas_limit": "0x000000000001",
             "pre_verification_gas": hex(50000),
             "max_fee_per_gas": "0x000000000001",

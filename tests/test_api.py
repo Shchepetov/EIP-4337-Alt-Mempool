@@ -5,6 +5,7 @@ from brownie import accounts
 
 import utils.validation
 from app.config import settings
+from app.constants import CALL_GAS
 
 
 @pytest.mark.eth_sendUserOperation
@@ -274,7 +275,7 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_user_op_if_paymaster_have_not_enough_deposit(
+async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     client, contracts, test_request: dict
 ):
     paymaster = contracts.simple_account_factory
@@ -291,4 +292,18 @@ async def test_rejects_user_op_if_paymaster_have_not_enough_deposit(
         + int(test_request["user_op"]["call_gas_limit"], 16)
     )
     contracts.entry_point.depositTo(paymaster.address, {"value": max_gas_cost})
+    await client.send_user_op(test_request, status_code=200)
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
+    client, test_request: dict
+):
+    test_request["user_op"]["call_gas_limit"] = hex(CALL_GAS - 1)
+    await client.send_user_op(
+        test_request, expected_error_message="'call_gas_limit' is less than"
+    )
+
+    test_request["user_op"]["call_gas_limit"] = hex(CALL_GAS)
     await client.send_user_op(test_request, status_code=200)
