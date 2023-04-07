@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     max_verification_gas: int = 100_000
     expires_soon_interval: int = 10
     last_user_ops_count: int = 100
+    min_max_fee_per_gas: int = 1
     environment: str = "PRODUCT"
     db_url_base = "postgresql+asyncpg://localhost"
     app_db_name = "mempool"

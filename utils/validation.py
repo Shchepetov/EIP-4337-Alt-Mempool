@@ -82,6 +82,13 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
             status_code=422,
             detail=f"'verification_gas_limit' value is larger than the client "
             "limit of {settings.max_verification_gas}.",
+
+    if user_op.max_fee_per_gas < settings.min_max_fee_per_gas:
+        raise HTTPException(
+            status_code=422,
+            detail="'max_fee_per_gas' value is less than the client limit of "
+            f"{settings.min_max_fee_per_gas}.",
+        )
         )
 
     if user_op.pre_verification_gas < calldata_gas(user_op):

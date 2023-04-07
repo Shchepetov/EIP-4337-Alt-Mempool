@@ -235,7 +235,25 @@ async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
         test_request,
         expected_error_message=f"'verification_gas_limit' value is larger than "
         "the client limit of {settings.max_verification_gas}",
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
+    client, test_request: dict
+):
+    incorrect_max_fee_per_gas = hex(settings.min_max_fee_per_gas - 1)
+    test_request["user_op"]["max_fee_per_gas"] = incorrect_max_fee_per_gas
+    await client.send_user_op(
+        test_request,
+        expected_error_message=f"'max_fee_per_gas' value is less than "
+        f"the client limit of {settings.min_max_fee_per_gas}",
     )
+
+    test_request["user_op"]["max_fee_per_gas"] = hex(
+        settings.min_max_fee_per_gas
+    )
+    await client.send_user_op(test_request, status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
