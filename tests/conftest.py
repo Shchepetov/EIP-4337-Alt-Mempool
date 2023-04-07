@@ -3,7 +3,13 @@ from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
-from brownie import accounts, chain, EntryPoint, SimpleAccountFactory
+from brownie import (
+    accounts,
+    chain,
+    DepositPaymaster,
+    EntryPoint,
+    SimpleAccountFactory,
+)
 from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,11 +35,11 @@ class AppClient:
         )
 
     async def _make_request(
-        self,
-        method: str,
-        json: dict,
-        status_code=None,
-        expected_error_message=None,
+            self,
+            method: str,
+            json: dict,
+            status_code=None,
+            expected_error_message=None,
     ):
         url = f"/api/{method}"
         response = await self.client.post(url, json=json)
@@ -55,6 +61,14 @@ class TestContracts:
         self.simple_account_factory = accounts[0].deploy(
             SimpleAccountFactory, self.entry_point.address
         )
+        self.paymaster = accounts[0].deploy(
+            DepositPaymaster, self.entry_point.address
+        )
+
+        self.entry_point.depositTo(
+            self.paymaster.address, {"value": "10 ether"}
+        )
+
         chain.snapshot()
 
 
@@ -91,7 +105,7 @@ async def client(contracts) -> AppClient:
 
 @pytest_asyncio.fixture(autouse=True)
 async def session(
-    init_models,
+        init_models,
 ) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session

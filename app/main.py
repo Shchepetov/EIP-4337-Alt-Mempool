@@ -112,8 +112,8 @@ async def send_user_operation(
 
     validation_result = await validate_user_op(
         session,
-        request.user_op,
         settings.rpc_server,
+        request.user_op,
         request.entry_point,
         settings.expires_soon_interval,
         check_forbidden_opcodes=True,

@@ -1,6 +1,7 @@
 import re
 
 import web3
+from brownie import EntryPoint
 from fastapi import HTTPException
 
 import db.service
@@ -38,14 +39,15 @@ def validate_hex(v):
 
 async def validate_user_op(
     session,
-    user_op,
     rpc_server,
+    user_op,
     entry_point_address,
     expires_soon_interval,
     check_forbidden_opcodes=False,
 ) -> (SimulationResult):
     provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
-    await validate_before_simulation(provider, session, user_op)
+    entry_point = EntryPoint.at(entry_point_address)
+    await validate_before_simulation(provider, session, user_op, entry_point)
 
     simulation_result = SimulationResult()
     simulation_result.valid_after = 0
@@ -55,7 +57,7 @@ async def validate_user_op(
     return simulation_result
 
 
-async def validate_before_simulation(provider, session, user_op):
+async def validate_before_simulation(provider, session, user_op, entry_point):
     if not await is_unique(user_op, session):
         raise HTTPException(
             status_code=422,
@@ -95,6 +97,18 @@ async def validate_before_simulation(provider, session, user_op):
                 status_code=422,
                 detail="The first 20 bytes of 'paymaster_and_data' do not "
                 "represent a smart contract address.",
+            )
+
+        max_gas_cost = user_op.max_fee_per_gas * (
+            user_op.pre_verification_gas
+            + user_op.verification_gas_limit
+            + user_op.call_gas_limit
+        )
+        if entry_point.balanceOf(paymaster) < max_gas_cost:
+            raise HTTPException(
+                status_code=422,
+                detail="The paymaster does not have sufficient funds to pay "
+                "for the UserOp.",
             )
 
 

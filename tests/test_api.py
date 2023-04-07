@@ -258,7 +258,7 @@ async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_paymaster(
-    client, test_request: dict
+    client, contracts, test_request: dict
 ):
     test_request["user_op"]["paymaster_and_data"] = hex(123)
     await client.send_user_op(
@@ -266,3 +266,29 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
         expected_error_message="The first 20 bytes of 'paymaster_and_data' do "
         "not represent a smart contract address",
     )
+
+    # TODO: change to paymaster address
+    test_request["user_op"]["paymaster_and_data"] = contracts.paymaster.address
+    await client.send_user_op(test_request, status_code=200)
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_if_paymaster_have_not_enough_deposit(
+    client, contracts, test_request: dict
+):
+    paymaster = contracts.simple_account_factory
+    test_request["user_op"]["paymaster_and_data"] = paymaster.address
+    await client.send_user_op(
+        test_request,
+        expected_error_message="The paymaster does not have sufficient funds "
+        "to pay for the UserOp.",
+    )
+
+    max_gas_cost = int(test_request["user_op"]["max_fee_per_gas"], 16) * (
+        int(test_request["user_op"]["pre_verification_gas"], 16)
+        + int(test_request["user_op"]["verification_gas_limit"], 16)
+        + int(test_request["user_op"]["call_gas_limit"], 16)
+    )
+    contracts.entry_point.depositTo(paymaster.address, {"value": max_gas_cost})
+    await client.send_user_op(test_request, status_code=200)
