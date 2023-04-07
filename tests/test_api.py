@@ -3,6 +3,7 @@ import copy
 import pytest
 from brownie import accounts
 
+import utils.validation
 from app.config import settings
 
 
@@ -228,13 +229,14 @@ async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
     test_request["user_op"]["init_code"] = eoa_address
     await client.send_user_op(
         test_request,
-        expected_error_message="'sender' and the first 20 bytes of 'init_code' do not represent a smart contract address",
+        expected_error_message="'sender' and the first 20 bytes of "
+        "'init_code' do not represent a smart contract address",
     )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_verification_gas_limit_greater_than_client_limit(
+async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     client, test_request: dict
 ):
     incorrect_verification_gas_limit = hex(settings.max_verification_gas + 1)
@@ -243,5 +245,24 @@ async def test_rejects_user_op_with_verification_gas_limit_greater_than_client_l
     ] = incorrect_verification_gas_limit
     await client.send_user_op(
         test_request,
-        expected_error_message=f"'verification_gas_limit' is larger than the client limit of {settings.max_verification_gas}",
+        expected_error_message=f"'verification_gas_limit' value is larger than "
+        "the client limit of {settings.max_verification_gas}",
+    )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
+    client, test_request: dict
+):
+    incorrect_pre_verification_gas = (
+        utils.validation.calldata_gas(test_request["user_op"]) - 1
+    )
+    test_request["user_op"]["pre_verification_gas"] = hex(
+        incorrect_pre_verification_gas
+    )
+    await client.send_user_op(
+        test_request,
+        expected_error_message="'pre_verification_gas' value is insufficient "
+        "to cover the gas cost of serializing UserOp to calldata",
     )

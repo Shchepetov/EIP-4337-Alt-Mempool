@@ -115,7 +115,7 @@ def test_request(contracts):
             "call_data": "0x000000000001",
             "call_gas_limit": "0x000000000001",
             "verification_gas_limit": "0x000000000001",
-            "pre_verification_gas": "0x000000000001",
+            "pre_verification_gas": hex(50000),
             "max_fee_per_gas": "0x000000000001",
             "max_priority_fee_per_gas": "0x000000000001",
             "paymaster_and_data": "0x000000000001",
