@@ -118,7 +118,7 @@ def test_request(contracts):
             "pre_verification_gas": hex(50000),
             "max_fee_per_gas": "0x000000000001",
             "max_priority_fee_per_gas": "0x000000000001",
-            "paymaster_and_data": "0x000000000001",
+            "paymaster_and_data": "0x00",
             "signature": "0x000000000001",
         },
         "entry_point": contracts.entry_point.address,

@@ -266,3 +266,16 @@ async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
         expected_error_message="'pre_verification_gas' value is insufficient "
         "to cover the gas cost of serializing UserOp to calldata",
     )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_without_contract_address_in_paymaster(
+    client, test_request: dict
+):
+    test_request["user_op"]["paymaster_and_data"] = hex(123)
+    await client.send_user_op(
+        test_request,
+        expected_error_message="The first 20 bytes of 'paymaster_and_data' do "
+        "not represent a smart contract address",
+    )

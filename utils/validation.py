@@ -117,14 +117,24 @@ async def validate_before_simulation(provider, session, user_op):
             "gas cost of serializing UserOp to calldata.",
         )
 
+    if any(num != "0" for num in user_op.paymaster_and_data[2:]):
+        paymaster = user_op.paymaster_and_data[:42]
+        if not is_contract(provider, paymaster):
+            raise HTTPException(
+                status_code=422,
+                detail="The first 20 bytes of 'paymaster_and_data' do not "
+                "represent a smart contract address.",
+            )
+
 
 async def is_unique(user_op, session) -> bool:
     return await db.service.get_user_op_by_hash(session, user_op.hash) is None
 
 
 def is_contract(provider, address) -> bool:
-    if address == web3.constants.ADDRESS_ZERO:
+    if not is_address(address) or address == web3.constants.ADDRESS_ZERO:
         return False
+    
     bytecode = provider.eth.get_code(address)
     return bool(len(bytecode))
 
