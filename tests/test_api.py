@@ -5,7 +5,7 @@ from brownie import accounts
 
 import utils.validation
 from app.config import settings
-from app.constants import CALL_GAS
+import app.constants as constants
 
 
 @pytest.mark.eth_sendUserOperation
@@ -227,14 +227,22 @@ async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
 async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     client, test_request: dict
 ):
-    incorrect_verification_gas_limit = hex(settings.max_verification_gas + 1)
+    incorrect_verification_gas_limit = hex(
+        settings.max_verification_gas_limit + 1
+    )
     test_request["user_op"][
         "verification_gas_limit"
     ] = incorrect_verification_gas_limit
     await client.send_user_op(
         test_request,
         expected_error_message=f"'verification_gas_limit' value is larger than "
-        "the client limit of {settings.max_verification_gas}",
+        f"the client limit of {settings.max_verification_gas_limit}",
+    )
+
+    test_request["user_op"]["verification_gas_limit"] = hex(
+        settings.max_verification_gas_limit
+    )
+    await client.send_user_op(test_request, status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
@@ -252,6 +260,29 @@ async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
 
     test_request["user_op"]["max_fee_per_gas"] = hex(
         settings.min_max_fee_per_gas
+    )
+    await client.send_user_op(test_request, status_code=200)
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
+    client, test_request: dict
+):
+    incorrect_max_priority_fee_per_gas = hex(
+        settings.min_max_priority_fee_per_gas - 1
+    )
+    test_request["user_op"][
+        "max_priority_fee_per_gas"
+    ] = incorrect_max_priority_fee_per_gas
+    await client.send_user_op(
+        test_request,
+        expected_error_message=f"'max_priority_fee_per_gas' value is less than "
+        f"the client limit of {settings.min_max_priority_fee_per_gas}",
+    )
+
+    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+        settings.min_max_priority_fee_per_gas
     )
     await client.send_user_op(test_request, status_code=200)
 
@@ -301,7 +332,7 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     await client.send_user_op(
         test_request,
         expected_error_message="The paymaster does not have sufficient funds "
-        "to pay for the UserOp.",
+        "to pay for the UserOp",
     )
 
     max_gas_cost = int(test_request["user_op"]["max_fee_per_gas"], 16) * (
@@ -318,10 +349,13 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
 async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
     client, test_request: dict
 ):
-    test_request["user_op"]["call_gas_limit"] = hex(CALL_GAS - 1)
+    test_request["user_op"]["call_gas_limit"] = hex(constants.CALL_GAS - 1)
     await client.send_user_op(
-        test_request, expected_error_message="'call_gas_limit' is less than"
+        test_request,
+        expected_error_message=f"'call_gas_limit' is less than "
+        f"{constants.CALL_GAS}, which is the minimum gas cost of a 'CALL' with "
+        f"non-zero value",
     )
 
-    test_request["user_op"]["call_gas_limit"] = hex(CALL_GAS)
+    test_request["user_op"]["call_gas_limit"] = hex(constants.CALL_GAS)
     await client.send_user_op(test_request, status_code=200)

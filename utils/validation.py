@@ -6,7 +6,7 @@ from fastapi import HTTPException
 
 import db.service
 from app.config import settings
-from app.constants import CALL_GAS
+import app.constants as constants
 
 
 class SimulationResult:
@@ -77,11 +77,19 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
                 "represent a smart contract address.",
             )
 
-    if user_op.verification_gas_limit > settings.max_verification_gas:
+    if user_op.call_gas_limit < constants.CALL_GAS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'call_gas_limit' is less than {constants.CALL_GAS}, which "
+            "is the minimum gas cost of a 'CALL' with non-zero value.",
+        )
+
+    if user_op.verification_gas_limit > settings.max_verification_gas_limit:
         raise HTTPException(
             status_code=422,
             detail=f"'verification_gas_limit' value is larger than the client "
-            "limit of {settings.max_verification_gas}.",
+            f"limit of {settings.max_verification_gas_limit}.",
+        )
 
     if user_op.max_fee_per_gas < settings.min_max_fee_per_gas:
         raise HTTPException(
@@ -89,6 +97,12 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
             detail="'max_fee_per_gas' value is less than the client limit of "
             f"{settings.min_max_fee_per_gas}.",
         )
+
+    if user_op.max_priority_fee_per_gas < settings.min_max_priority_fee_per_gas:
+        raise HTTPException(
+            status_code=422,
+            detail="'max_priority_fee_per_gas' value is less than the client "
+            f"limit of {settings.min_max_priority_fee_per_gas}.",
         )
 
     if user_op.pre_verification_gas < calldata_gas(user_op):
@@ -118,13 +132,6 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
                 detail="The paymaster does not have sufficient funds to pay "
                 "for the UserOp.",
             )
-
-    if user_op.call_gas_limit < CALL_GAS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"'call_gas_limit' is less than {CALL_GAS}, which is the "
-            "minimum gas cost of a 'CALL' with non-zero value.",
-        )
 
 
 async def is_unique(user_op, session) -> bool:

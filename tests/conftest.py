@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.config as config
 import db.utils
 from app.config import Settings
-from app.constants import CALL_GAS
+import app.constants as constants
 from db.base import engine, async_session, Base
 
 
@@ -128,11 +128,11 @@ def test_request(contracts):
             "nonce": "0x00000000001000000000001000000",
             "init_code": contracts.simple_account_factory.address,
             "call_data": "0x000000000001",
-            "call_gas_limit": hex(CALL_GAS),
+            "call_gas_limit": hex(constants.CALL_GAS),
             "verification_gas_limit": "0x000000000001",
             "pre_verification_gas": hex(50000),
-            "max_priority_fee_per_gas": "0x000000000001",
             "max_fee_per_gas": hex(100),
+            "max_priority_fee_per_gas": hex(10),
             "paymaster_and_data": "0x00",
             "signature": "0x000000000001",
         },
