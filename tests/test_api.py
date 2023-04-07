@@ -92,19 +92,6 @@ async def test_accepts_user_op_with_0x0_sender(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_incorrect_checksum_in_address_fields(
-    client, test_request: dict
-):
-    test_request["user_op"][
-        "sender"
-    ] = "0x4cDbDf63ae2215eDD6B673F9DABFf789A13D4270"
-    await client.send_user_op(
-        test_request, expected_error_message="Must be an Ethereum address"
-    )
-
-
-@pytest.mark.eth_sendUserOperation
-@pytest.mark.asyncio
 async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
     client, test_request: dict
 ):

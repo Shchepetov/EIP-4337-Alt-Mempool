@@ -1,7 +1,6 @@
 import re
 
 import web3
-from Crypto.Hash import keccak
 from fastapi import HTTPException
 
 import db.service
@@ -26,36 +25,8 @@ def validate_address(v):
     return v
 
 
-def is_address(s):
-    if not re.match(r"^(0x)[0-9a-f]{40}$", s, flags=re.IGNORECASE):
-        # Check if it has the basic requirements of an address
-        return False
-    elif re.match(r"^(0x)[0-9a-f]{40}$", s) or re.match(
-        r"^(0x)[0-9A-F]{40}$", s
-    ):
-        # If it's all small caps or all caps, return true
-        return True
-    else:
-        # Otherwise check each case
-        return is_checksum_address(s)
-
-
-def is_checksum_address(s):
-    address = s.replace("0x", "")
-    address_hash = keccak.new(digest_bits=256)
-    address_hash = address_hash.update(
-        address.lower().encode("utf-8")
-    ).hexdigest()
-
-    for i in range(0, 40):
-        # The nth letter should be uppercase if the nth digit of casemap is 1
-        if (
-            int(address_hash[i], 16) > 7 and address[i].upper() != address[i]
-        ) or (
-            int(address_hash[i], 16) <= 7 and address[i].lower() != address[i]
-        ):
-            return False
-    return True
+def is_address(s) -> bool:
+    return bool(re.match(r"^(0x)[0-9a-f]{40}$", s, flags=re.IGNORECASE))
 
 
 def validate_hex(v):
@@ -134,7 +105,7 @@ async def is_unique(user_op, session) -> bool:
 def is_contract(provider, address) -> bool:
     if not is_address(address) or address == web3.constants.ADDRESS_ZERO:
         return False
-    
+
     bytecode = provider.eth.get_code(address)
     return bool(len(bytecode))
 
