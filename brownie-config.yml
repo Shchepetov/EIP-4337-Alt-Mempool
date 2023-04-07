@@ -1,0 +1,5 @@
+compiler:
+    evm_version: london
+    solc:
+        remappings:
+            - '@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.8.2'
