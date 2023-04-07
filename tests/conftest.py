@@ -1,33 +1,17 @@
 import asyncio
-import copy
 from collections.abc import AsyncGenerator
 
 import pytest
 import pytest_asyncio
+from brownie import accounts, chain, EntryPoint, SimpleAccountFactory
 from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.main import app
+import app.config as config
+import db.utils
+from app.config import Settings
 from db.base import engine, async_session, Base
-from db.utils import init_models
-
-TEST_SEND_REQUEST = {
-    "user_op": {
-        "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
-        "nonce": "0x00000000001000000000001000000",
-        "init_code": "0x000000000001",
-        "call_data": "0x000000000001",
-        "call_gas_limit": "0x000000000001",
-        "verification_gas_limit": "0x000000000001",
-        "pre_verification_gas": "0x000000000001",
-        "max_fee_per_gas": "0x000000000001",
-        "max_priority_fee_per_gas": "0x000000000001",
-        "paymaster_and_data": "0x000000000001",
-        "signature": "0x000000000001",
-    },
-    "entry_point": "0xE40FdeB78BD64E7ab4BB12FA8C4046c85642eD6f",
-}
 
 
 class AppClient:
@@ -59,9 +43,19 @@ class AppClient:
             assert response.status_code == status_code
 
         if expected_error_message is not None:
+            assert "detail" in response_json
             assert expected_error_message in response_json["detail"]
 
         return response_json
+
+
+class TestContracts:
+    def __init__(self):
+        self.entry_point = accounts[0].deploy(EntryPoint)
+        self.simple_account_factory = accounts[0].deploy(
+            SimpleAccountFactory, self.entry_point.address
+        )
+        chain.snapshot()
 
 
 @pytest.fixture(scope="session")
@@ -73,16 +67,37 @@ def event_loop():
 
 
 @pytest_asyncio.fixture(scope="session")
-async def init_test_models():
-    await init_models(engine)
+async def init_models():
+    await db.utils.init_models(engine)
+
+
+@pytest_asyncio.fixture(scope="session")
+def contracts() -> dict:
+    return TestContracts()
+
+
+@pytest_asyncio.fixture(scope="session")
+async def client(contracts) -> AppClient:
+    config.settings = Settings(
+        supported_entry_points=[contracts.entry_point.address],
+        rpc_server="http://127.0.0.1:8545",
+    )
+
+    from app.main import app
+
+    async with AsyncClient(app=app, base_url="https://localhost") as client:
+        yield AppClient(client)
 
 
 @pytest_asyncio.fixture(autouse=True)
 async def session(
-    init_test_models,
+    init_models,
 ) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
         yield session
+
+        # reset test network state
+        chain.revert()
 
         # delete all data from all tables after test
         for name, table in Base.metadata.tables.items():
@@ -90,12 +105,21 @@ async def session(
         await session.commit()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def client() -> AppClient:
-    async with AsyncClient(app=app, base_url="https://localhost") as client:
-        yield AppClient(client)
-
-
 @pytest.fixture(scope="function")
-def test_request():
-    yield copy.deepcopy(TEST_SEND_REQUEST)
+def test_request(contracts):
+    return {
+        "user_op": {
+            "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
+            "nonce": "0x00000000001000000000001000000",
+            "init_code": contracts.simple_account_factory.address,
+            "call_data": "0x000000000001",
+            "call_gas_limit": "0x000000000001",
+            "verification_gas_limit": "0x000000000001",
+            "pre_verification_gas": "0x000000000001",
+            "max_fee_per_gas": "0x000000000001",
+            "max_priority_fee_per_gas": "0x000000000001",
+            "paymaster_and_data": "0x000000000001",
+            "signature": "0x000000000001",
+        },
+        "entry_point": contracts.entry_point.address,
+    }

@@ -1,10 +1,10 @@
 import re
 
+import web3
 from Crypto.Hash import keccak
 from fastapi import HTTPException
 
 import db.service
-import web3
 
 
 class SimulationResult:
@@ -102,7 +102,6 @@ async def validate_before_simulation(provider, session, user_op):
             )
 
 
-
 async def is_unique(user_op, session) -> bool:
     return await db.service.get_user_op_by_hash(session, user_op.hash) is None
 
@@ -110,5 +109,5 @@ async def is_unique(user_op, session) -> bool:
 def is_contract(provider, address) -> bool:
     if address == web3.constants.ADDRESS_ZERO:
         return False
-    bytecode = provider.eth.getCode(address)
+    bytecode = provider.eth.get_code(address)
     return bool(len(bytecode))
