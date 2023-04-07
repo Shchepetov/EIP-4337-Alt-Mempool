@@ -1,10 +1,9 @@
 import copy
-import logging
 
 import pytest
 from brownie import accounts
 
-LOGGER = logging.getLogger(__name__)
+from app.config import settings
 
 
 @pytest.mark.eth_sendUserOperation
@@ -230,4 +229,19 @@ async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
     await client.send_user_op(
         test_request,
         expected_error_message="'sender' and the first 20 bytes of 'init_code' do not represent a smart contract address",
+    )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_verification_gas_limit_greater_than_client_limit(
+    client, test_request: dict
+):
+    incorrect_verification_gas_limit = hex(settings.max_verification_gas + 1)
+    test_request["user_op"][
+        "verification_gas_limit"
+    ] = incorrect_verification_gas_limit
+    await client.send_user_op(
+        test_request,
+        expected_error_message=f"'verification_gas_limit' is larger than the client limit of {settings.max_verification_gas}",
     )

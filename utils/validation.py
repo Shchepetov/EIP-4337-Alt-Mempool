@@ -5,6 +5,7 @@ from Crypto.Hash import keccak
 from fastapi import HTTPException
 
 import db.service
+from app.config import settings
 
 
 class SimulationResult:
@@ -100,6 +101,12 @@ async def validate_before_simulation(provider, session, user_op):
                 status_code=422,
                 detail="'sender' and the first 20 bytes of 'init_code' do not represent a smart contract address.",
             )
+
+    if user_op.verification_gas_limit > settings.max_verification_gas:
+        raise HTTPException(
+            status_code=422,
+            detail=f"'verification_gas_limit' is larger than the client limit of {settings.max_verification_gas}.",
+        )
 
 
 async def is_unique(user_op, session) -> bool:
