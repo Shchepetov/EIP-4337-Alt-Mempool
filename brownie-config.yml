@@ -3,3 +3,4 @@ compiler:
     solc:
         remappings:
             - '@openzeppelin=OpenZeppelin/openzeppelin-contracts@4.8.2'
+            - '@gnosis.pm/safe-contracts=safe-global/safe-contracts@1.3.0'
