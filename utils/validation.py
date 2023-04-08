@@ -4,9 +4,9 @@ import web3
 from brownie import EntryPoint
 from fastapi import HTTPException
 
+import app.constants as constants
 import db.service
 from app.config import settings
-import app.constants as constants
 
 
 class SimulationResult:
@@ -84,6 +84,13 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
             "is the minimum gas cost of a 'CALL' with non-zero value.",
         )
 
+    if user_op.pre_verification_gas < calldata_gas(user_op):
+        raise HTTPException(
+            status_code=422,
+            detail="'pre_verification_gas' value is insufficient to cover the "
+            "gas cost of serializing UserOp to calldata.",
+        )
+
     if user_op.verification_gas_limit > settings.max_verification_gas_limit:
         raise HTTPException(
             status_code=422,
@@ -105,11 +112,13 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
             f"limit of {settings.min_max_priority_fee_per_gas}.",
         )
 
-    if user_op.pre_verification_gas < calldata_gas(user_op):
+    if user_op.max_fee_per_gas < user_op.max_priority_fee_per_gas + base_fee(
+        provider
+    ):
         raise HTTPException(
             status_code=422,
-            detail="'pre_verification_gas' value is insufficient to cover the "
-            "gas cost of serializing UserOp to calldata.",
+            detail="'max_fee_per_gas' and 'max_priority_fee_per_gas' are not "
+            "sufficiently high to be included with the current block.",
         )
 
     if any(num != "0" for num in user_op.paymaster_and_data[2:]):
@@ -159,3 +168,10 @@ def calldata_gas(user_op) -> int:
     zero_bytes_count = calldata_bytes.count(0)
 
     return 4 * zero_bytes_count + 16 * (len(calldata_bytes) - zero_bytes_count)
+
+
+def base_fee(provider):
+    latest_block = provider.eth.get_block("latest")
+    return (
+        latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
+    )

@@ -6,6 +6,7 @@ import pytest_asyncio
 from brownie import (
     accounts,
     chain,
+    web3,
     DepositPaymaster,
     EntryPoint,
     SimpleAccountFactory,
@@ -70,6 +71,7 @@ class TestContracts:
             self.paymaster.address, {"value": "10 ether"}
         )
 
+        chain.mine()
         chain.snapshot()
 
 
@@ -95,7 +97,7 @@ def contracts() -> dict:
 async def client(contracts) -> AppClient:
     config.settings = Settings(
         supported_entry_points=[contracts.entry_point.address],
-        rpc_server="http://127.0.0.1:8545",
+        rpc_server=web3.provider.endpoint_uri,
     )
 
     from app.main import app

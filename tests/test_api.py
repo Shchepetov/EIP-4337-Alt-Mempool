@@ -1,11 +1,11 @@
 import copy
 
 import pytest
-from brownie import accounts
+from brownie import accounts, web3
 
+import app.constants as constants
 import utils.validation
 from app.config import settings
-import app.constants as constants
 
 
 @pytest.mark.eth_sendUserOperation
@@ -227,12 +227,10 @@ async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
 async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     client, test_request: dict
 ):
-    incorrect_verification_gas_limit = hex(
-        settings.max_verification_gas_limit + 1
+    incorrect_verification_gas_limit = settings.max_verification_gas_limit + 1
+    test_request["user_op"]["verification_gas_limit"] = hex(
+        incorrect_verification_gas_limit
     )
-    test_request["user_op"][
-        "verification_gas_limit"
-    ] = incorrect_verification_gas_limit
     await client.send_user_op(
         test_request,
         expected_error_message=f"'verification_gas_limit' value is larger than "
@@ -240,7 +238,7 @@ async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     )
 
     test_request["user_op"]["verification_gas_limit"] = hex(
-        settings.max_verification_gas_limit
+        incorrect_verification_gas_limit - 1
     )
     await client.send_user_op(test_request, status_code=200)
 
@@ -250,18 +248,13 @@ async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
 async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
     client, test_request: dict
 ):
-    incorrect_max_fee_per_gas = hex(settings.min_max_fee_per_gas - 1)
-    test_request["user_op"]["max_fee_per_gas"] = incorrect_max_fee_per_gas
+    incorrect_max_fee_per_gas = settings.min_max_fee_per_gas - 1
+    test_request["user_op"]["max_fee_per_gas"] = hex(incorrect_max_fee_per_gas)
     await client.send_user_op(
         test_request,
         expected_error_message=f"'max_fee_per_gas' value is less than "
         f"the client limit of {settings.min_max_fee_per_gas}",
     )
-
-    test_request["user_op"]["max_fee_per_gas"] = hex(
-        settings.min_max_fee_per_gas
-    )
-    await client.send_user_op(test_request, status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
@@ -269,12 +262,12 @@ async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
 async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
     client, test_request: dict
 ):
-    incorrect_max_priority_fee_per_gas = hex(
+    incorrect_max_priority_fee_per_gas = (
         settings.min_max_priority_fee_per_gas - 1
     )
-    test_request["user_op"][
-        "max_priority_fee_per_gas"
-    ] = incorrect_max_priority_fee_per_gas
+    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+        incorrect_max_priority_fee_per_gas
+    )
     await client.send_user_op(
         test_request,
         expected_error_message=f"'max_priority_fee_per_gas' value is less than "
@@ -282,7 +275,36 @@ async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
     )
 
     test_request["user_op"]["max_priority_fee_per_gas"] = hex(
-        settings.min_max_priority_fee_per_gas
+        incorrect_max_priority_fee_per_gas + 1
+    )
+    await client.send_user_op(test_request, status_code=200)
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
+    client, test_request: dict
+):
+    latest_block = web3.eth.get_block("latest")
+    base_fee = (
+        latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
+    )
+    incorrect_max_priority_fee_per_gas = (
+        int(test_request["user_op"]["max_fee_per_gas"], 16) - base_fee + 1
+    )
+
+    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+        incorrect_max_priority_fee_per_gas
+    )
+    await client.send_user_op(
+        test_request,
+        expected_error_message="'max_fee_per_gas' and "
+        "'max_priority_fee_per_gas' are not sufficiently high to be included "
+        "with the current block",
+    )
+
+    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+        incorrect_max_priority_fee_per_gas - 1
     )
     await client.send_user_op(test_request, status_code=200)
 
