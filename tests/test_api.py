@@ -4,98 +4,95 @@ import pytest
 from brownie import accounts, web3
 
 import app.constants as constants
-import utils.validation
 from app.config import settings
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_accepts_user_op(client, test_request: dict):
-    await client.send_user_op(test_request, status_code=200)
+async def test_accepts_user_op(client, send_request):
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_integers_in_fields(
-    client, test_request: dict
-):
-    for field in test_request["user_op"].keys():
-        incorrect_request = copy.deepcopy(test_request)
-        incorrect_request["user_op"][field] = int(
-            test_request["user_op"][field], 16
-        )
+async def test_rejects_user_op_with_integers_in_fields(client, send_request):
+    request_json = send_request.json()
+    for field in request_json["user_op"].keys():
+        incorrect_json = copy.deepcopy(request_json)
+        incorrect_json["user_op"][field] = 0
         await client.send_user_op(
-            incorrect_request, expected_error_message="Not a hex value"
+            incorrect_json, expected_error_message="Not a hex value"
         )
 
-    incorrect_request = copy.deepcopy(test_request)
-    incorrect_request["entry_point"] = int(test_request["entry_point"], 16)
+    incorrect_json = copy.deepcopy(request_json)
+    incorrect_json["entry_point"] = 0
     await client.send_user_op(
-        incorrect_request, expected_error_message="Not a hex value"
+        incorrect_json, expected_error_message="Not a hex value"
     )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_non_hexadecimal_values_in_fields(
-    client, test_request: dict
+    client, send_request
 ):
-    for field in test_request["user_op"].keys():
-        incorrect_request = copy.deepcopy(test_request)
-        incorrect_request["user_op"][field] = test_request["user_op"][
+    request_json = send_request.json()
+    for field in request_json["user_op"].keys():
+        incorrect_json = copy.deepcopy(request_json)
+        incorrect_json["user_op"][field] = request_json["user_op"][
             field
         ].replace("0x", "")
         await client.send_user_op(
-            incorrect_request, expected_error_message="Not a hex value"
+            incorrect_json, expected_error_message="Not a hex value"
         )
 
-        incorrect_request["user_op"][field] = (
-            test_request["user_op"][field][:-1] + "g"
+        incorrect_json["user_op"][field] = (
+            request_json["user_op"][field][:-1] + "g"
         )
         await client.send_user_op(
-            incorrect_request, expected_error_message="Not a hex value"
+            incorrect_json, expected_error_message="Not a hex value"
         )
 
-    incorrect_request = copy.deepcopy(test_request)
-    incorrect_request["entry_point"] = test_request["entry_point"].replace(
+    incorrect_json = copy.deepcopy(request_json)
+    incorrect_json["entry_point"] = request_json["entry_point"].replace(
         "0x", ""
     )
     await client.send_user_op(
-        incorrect_request, expected_error_message="Not a hex value"
+        incorrect_json, expected_error_message="Not a hex value"
     )
 
-    incorrect_request = copy.deepcopy(test_request)
-    incorrect_request["entry_point"] = test_request["entry_point"][:-1] + "g"
+    incorrect_json = copy.deepcopy(request_json)
+    incorrect_json["entry_point"] = request_json["entry_point"][:-1] + "g"
     await client.send_user_op(
-        incorrect_request, expected_error_message="Not a hex value"
+        incorrect_json, expected_error_message="Not a hex value"
     )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_values_less_than_20_bytes_in_address_fields(
-    client, test_request: dict
+    client, send_request
 ):
-    test_request["user_op"][
-        "sender"
-    ] = "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D427"
+    send_request.user_op.sender = "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D427"
     await client.send_user_op(
-        test_request, expected_error_message="Must be an Ethereum address"
+        send_request.json(),
+        expected_error_message="Must be an Ethereum address",
     )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_accepts_user_op_with_0x0_sender(client, test_request: dict):
-    test_request["user_op"]["sender"] = "0x0"
-    await client.send_user_op(test_request, status_code=200)
+async def test_accepts_user_op_with_0x_sender(client, send_request):
+    send_request.user_op.sender = "0x"
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
-    client, test_request: dict
+    client, send_request
 ):
+    request_json = send_request.json()
     for field in (
         "nonce",
         "call_gas_limit",
@@ -104,10 +101,10 @@ async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
         "max_fee_per_gas",
         "max_priority_fee_per_gas",
     ):
-        incorrect_request = copy.deepcopy(test_request)
-        incorrect_request["user_op"][field] = hex(2**256)
+        incorrect_json = copy.deepcopy(request_json)
+        incorrect_json["user_op"][field] = hex(2**256)
         await client.send_user_op(
-            incorrect_request,
+            incorrect_json,
             expected_error_message="Must be in range [0, 2**256)",
         )
 
@@ -115,75 +112,67 @@ async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_odd_hexadecimal_chars_in_byte_fields(
-    client, test_request: dict
+    client, send_request
 ):
+    request_json = send_request.json()
     for field in (
         "init_code",
         "call_data",
         "paymaster_and_data",
         "signature",
     ):
-        incorrect_request = copy.deepcopy(test_request)
-        incorrect_request["user_op"][field] = (
-            test_request["user_op"][field] + "0"
-        )
+        incorrect_json = copy.deepcopy(request_json)
+        incorrect_json["user_op"][field] = request_json["user_op"][field] + "1"
         await client.send_user_op(
-            incorrect_request, expected_error_message="Incorrect bytes string"
+            incorrect_json, expected_error_message="Incorrect bytes string"
         )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_saves_correct_user_op(client, test_request: dict):
-    user_op_hash = await client.send_user_op(test_request)
+async def test_saves_correct_user_op(client, send_request):
+    request_json = send_request.json()
+    user_op_hash = await client.send_user_op(request_json)
     user_op = await client.get_user_op(user_op_hash, status_code=200)
 
-    for field in test_request["user_op"].keys():
-        if field in (
-            "nonce",
-            "call_gas_limit",
-            "verification_gas_limit",
-            "pre_verification_gas",
-            "max_fee_per_gas",
-            "max_priority_fee_per_gas",
-        ):
-            assert user_op[field] == int(test_request["user_op"][field], 16)
-        else:
-            assert user_op[field] == test_request["user_op"][field]
+    for field in request_json["user_op"].keys():
+        assert user_op[field] == getattr(send_request.user_op, field)
 
-    assert user_op["entry_point"] == test_request["entry_point"]
+    assert user_op["entry_point"] == send_request.entry_point
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_same_user_op(client, test_request: dict):
-    await client.send_user_op(test_request)
+async def test_rejects_same_user_op(client, send_request):
+    await client.send_user_op(send_request.json())
     await client.send_user_op(
-        test_request, expected_error_message="UserOp is already in the pool"
+        send_request.json(),
+        expected_error_message="UserOp is already in the pool",
     )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_same_user_op_with_different_signature(
-    client, test_request: dict
+    client, send_request
 ):
-    await client.send_user_op(test_request)
-    test_request["user_op"]["signature"] = (
-        test_request["user_op"]["signature"] + "1234"
-    )
+    await client.send_user_op(send_request.json())
+    send_request.user_op.signature += "1234"
     await client.send_user_op(
-        test_request, expected_error_message="UserOp is already in the pool"
+        send_request.json(),
+        expected_error_message="UserOp is already in the pool",
     )
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_replaces_user_op_with_same_sender(client, test_request: dict):
-    user_op_1_hash = await client.send_user_op(test_request)
+async def test_replaces_user_op_with_same_sender(client, send_request):
+    user_op_1_hash = await client.send_user_op(send_request.json())
 
-    test_request["user_op"]["nonce"] = test_request["user_op"]["nonce"] + "1234"
-    user_op_2_hash = await client.send_user_op(test_request, status_code=200)
+    send_request.user_op.nonce += 1
+    user_op_2_hash = await client.send_user_op(
+        send_request.json(), status_code=200
+    )
 
     assert await client.get_user_op(user_op_1_hash) is None
 
@@ -193,12 +182,12 @@ async def test_replaces_user_op_with_same_sender(client, test_request: dict):
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_not_replaces_user_op_with_sender_0x0(client, test_request: dict):
-    test_request["user_op"]["sender"] = "0x0"
-    user_op_1_hash = await client.send_user_op(test_request)
+async def test_not_replaces_user_op_with_sender_0x(client, send_request):
+    send_request.user_op.sender = "0x"
+    user_op_1_hash = await client.send_user_op(send_request.json())
 
-    test_request["user_op"]["nonce"] = test_request["user_op"]["nonce"] + "1234"
-    user_op_2_hash = await client.send_user_op(test_request)
+    send_request.user_op.nonce += 1
+    user_op_2_hash = await client.send_user_op(send_request.json())
 
     user_op_1 = await client.get_user_op(user_op_1_hash)
     assert user_op_1["hash"] == user_op_1_hash
@@ -210,13 +199,13 @@ async def test_not_replaces_user_op_with_sender_0x0(client, test_request: dict):
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
-    client, test_request: dict
+    client, send_request
 ):
     eoa_address = accounts[0].address
-    test_request["user_op"]["sender"] = eoa_address
-    test_request["user_op"]["init_code"] = eoa_address
+    send_request.user_op.sender = eoa_address
+    send_request.user_op.init_code = eoa_address
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message="'sender' and the first 20 bytes of "
         "'init_code' do not represent a smart contract address",
     )
@@ -225,33 +214,33 @@ async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
-    client, test_request: dict
+    client, send_request
 ):
     incorrect_verification_gas_limit = settings.max_verification_gas_limit + 1
-    test_request["user_op"]["verification_gas_limit"] = hex(
+    send_request.user_op.verification_gas_limit = (
         incorrect_verification_gas_limit
     )
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message=f"'verification_gas_limit' value is larger than "
         f"the client limit of {settings.max_verification_gas_limit}",
     )
 
-    test_request["user_op"]["verification_gas_limit"] = hex(
+    send_request.user_op.verification_gas_limit = (
         incorrect_verification_gas_limit - 1
     )
-    await client.send_user_op(test_request, status_code=200)
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
-    client, test_request: dict
+    client, send_request
 ):
     incorrect_max_fee_per_gas = settings.min_max_fee_per_gas - 1
-    test_request["user_op"]["max_fee_per_gas"] = hex(incorrect_max_fee_per_gas)
+    send_request.user_op.max_fee_per_gas = incorrect_max_fee_per_gas
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message=f"'max_fee_per_gas' value is less than "
         f"the client limit of {settings.min_max_fee_per_gas}",
     )
@@ -260,68 +249,64 @@ async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
-    client, test_request: dict
+    client, send_request
 ):
     incorrect_max_priority_fee_per_gas = (
         settings.min_max_priority_fee_per_gas - 1
     )
-    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+    send_request.user_op.max_priority_fee_per_gas = (
         incorrect_max_priority_fee_per_gas
     )
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message=f"'max_priority_fee_per_gas' value is less than "
         f"the client limit of {settings.min_max_priority_fee_per_gas}",
     )
 
-    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+    send_request.user_op.max_priority_fee_per_gas = (
         incorrect_max_priority_fee_per_gas + 1
     )
-    await client.send_user_op(test_request, status_code=200)
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
-    client, test_request: dict
+    client, send_request
 ):
     latest_block = web3.eth.get_block("latest")
     base_fee = (
         latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
     )
-    incorrect_max_priority_fee_per_gas = (
-        int(test_request["user_op"]["max_fee_per_gas"], 16) - base_fee + 1
-    )
 
-    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+    incorrect_max_priority_fee_per_gas = (
+        send_request.user_op.max_fee_per_gas - base_fee + 1
+    )
+    send_request.user_op.max_priority_fee_per_gas = (
         incorrect_max_priority_fee_per_gas
     )
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message="'max_fee_per_gas' and "
         "'max_priority_fee_per_gas' are not sufficiently high to be included "
         "with the current block",
     )
 
-    test_request["user_op"]["max_priority_fee_per_gas"] = hex(
+    send_request.user_op.max_priority_fee_per_gas = (
         incorrect_max_priority_fee_per_gas - 1
     )
-    await client.send_user_op(test_request, status_code=200)
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
-    client, test_request: dict
+    client, send_request
 ):
-    incorrect_pre_verification_gas = (
-        utils.validation.calldata_gas(test_request["user_op"]) - 1
-    )
-    test_request["user_op"]["pre_verification_gas"] = hex(
-        incorrect_pre_verification_gas
-    )
+    incorrect_pre_verification_gas = send_request.user_op.calldata_gas() - 1
+    send_request.user_op.pre_verification_gas = incorrect_pre_verification_gas
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message="'pre_verification_gas' value is insufficient "
         "to cover the gas cost of serializing UserOp to calldata",
     )
@@ -330,54 +315,91 @@ async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_paymaster(
-    client, contracts, test_request: dict
+    client, contracts, send_request
 ):
-    test_request["user_op"]["paymaster_and_data"] = hex(123)
+    eoa_address = accounts[0].address
+    send_request.user_op.paymaster_and_data = eoa_address
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message="The first 20 bytes of 'paymaster_and_data' do "
         "not represent a smart contract address",
     )
 
-    # TODO: change to paymaster address
-    test_request["user_op"]["paymaster_and_data"] = contracts.paymaster.address
-    await client.send_user_op(test_request, status_code=200)
+    send_request.user_op.paymaster_and_data = contracts.paymaster.address
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
-    client, contracts, test_request: dict
+    client, contracts, send_request
 ):
-    paymaster = contracts.simple_account_factory
-    test_request["user_op"]["paymaster_and_data"] = paymaster.address
+    paymaster_address = contracts.simple_account_factory.address
+    send_request.user_op.paymaster_and_data = paymaster_address
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message="The paymaster does not have sufficient funds "
         "to pay for the UserOp",
     )
 
-    max_gas_cost = int(test_request["user_op"]["max_fee_per_gas"], 16) * (
-        int(test_request["user_op"]["pre_verification_gas"], 16)
-        + int(test_request["user_op"]["verification_gas_limit"], 16)
-        + int(test_request["user_op"]["call_gas_limit"], 16)
+    max_gas_cost = send_request.user_op.max_fee_per_gas * (
+        send_request.user_op.pre_verification_gas
+        + send_request.user_op.verification_gas_limit
+        + send_request.user_op.call_gas_limit
     )
-    contracts.entry_point.depositTo(paymaster.address, {"value": max_gas_cost})
-    await client.send_user_op(test_request, status_code=200)
+    contracts.entry_point.depositTo(paymaster_address, {"value": max_gas_cost})
+    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
-    client, test_request: dict
+    client, send_request
 ):
-    test_request["user_op"]["call_gas_limit"] = hex(constants.CALL_GAS - 1)
+    send_request.user_op.call_gas_limit = constants.CALL_GAS - 1
     await client.send_user_op(
-        test_request,
+        send_request.json(),
         expected_error_message=f"'call_gas_limit' is less than "
         f"{constants.CALL_GAS}, which is the minimum gas cost of a 'CALL' with "
         f"non-zero value",
     )
 
-    test_request["user_op"]["call_gas_limit"] = hex(constants.CALL_GAS)
-    await client.send_user_op(test_request, status_code=200)
+    send_request.user_op.call_gas_limit = constants.CALL_GAS
+    await client.send_user_op(send_request.json(), status_code=200)
+
+
+# @pytest.mark.eth_sendUserOperation
+# @pytest.mark.asyncio
+# async def test_simulate_user_op(client, contracts, send_request):
+#     from web3 import Web3
+#
+#     w3 = Web3(Web3.HTTPProvider("http://localhost:8545"))
+#
+#     owner = accounts.add()
+#     owner_address = owner.address
+#     salt = 1
+#     created_account_address = contracts.simple_account_factory.getAddress(
+#         owner_address, salt
+#     )
+#     print(created_account_address)
+#     init_code = (
+#         contracts.simple_account_factory.address
+#         + "5fbfb9cf"
+#         + owner_address[2:].zfill(64)
+#         + str(salt).zfill(64)
+#     )
+#     user_op = UserOp(
+#         created_account_address,
+#         1,
+#         init_code,
+#         hex(0),
+#         1e6,
+#         1e6,
+#         1e6,
+#         1e6,
+#         1e3,
+#         contracts.paymaster.address + 130 * "0",
+#     )
+#     user_op.sign()
+#     print(f"Signature: {user_op.signature}")
+#     contracts.entry_point.simulateValidation(user_op.json)

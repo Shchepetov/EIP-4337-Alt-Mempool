@@ -18,8 +18,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.config as config
 import db.utils
 from app.config import Settings
-import app.constants as constants
 from db.base import engine, async_session, Base
+from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
 
 
 class AppClient:
@@ -75,6 +75,15 @@ class TestContracts:
         chain.snapshot()
 
 
+class SendRequest:
+    def __init__(self, user_op, entry_point):
+        self.user_op = user_op
+        self.entry_point = entry_point
+
+    def json(self):
+        return {"user_op": self.user_op.json(), "entry_point": self.entry_point}
+
+
 @pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.new_event_loop()
@@ -123,20 +132,8 @@ async def session(
 
 
 @pytest.fixture(scope="function")
-def test_request(contracts):
-    return {
-        "user_op": {
-            "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
-            "nonce": "0x00000000001000000000001000000",
-            "init_code": contracts.simple_account_factory.address,
-            "call_data": "0x000000000001",
-            "call_gas_limit": hex(constants.CALL_GAS),
-            "verification_gas_limit": "0x000000000001",
-            "pre_verification_gas": hex(50000),
-            "max_fee_per_gas": hex(100),
-            "max_priority_fee_per_gas": hex(10),
-            "paymaster_and_data": "0x00",
-            "signature": "0x000000000001",
-        },
-        "entry_point": contracts.entry_point.address,
-    }
+def send_request(contracts):
+    user_op = UserOp(*DEFAULTS_FOR_USER_OP)
+    user_op.init_code = contracts.simple_account_factory.address
+    user_op.sign("1".zfill(64))
+    return SendRequest(user_op, contracts.entry_point.address)

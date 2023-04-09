@@ -17,7 +17,7 @@ class SimulationResult:
 
 def validate_address(v):
     v = validate_hex(v)
-    if v == "0x0":
+    if v == "0x":
         return web3.constants.ADDRESS_ZERO
     if not is_address(v):
         raise HTTPException(
@@ -32,7 +32,7 @@ def is_address(s) -> bool:
 
 
 def validate_hex(v):
-    if not (isinstance(v, str) and re.fullmatch(r"0x[0-9a-fA-F]+", v)):
+    if not (isinstance(v, str) and re.fullmatch(r"0x[0-9a-fA-F]*", v)):
         raise HTTPException(status_code=422, detail="Not a hex value.")
 
     return v
@@ -48,7 +48,9 @@ async def validate_user_op(
 ) -> (SimulationResult):
     provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
     entry_point = EntryPoint.at(entry_point_address)
+
     await validate_before_simulation(provider, session, user_op, entry_point)
+    # entry_point.simulateValidation(user_op.values())
 
     simulation_result = SimulationResult()
     simulation_result.valid_after = 0
@@ -84,7 +86,7 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
             "is the minimum gas cost of a 'CALL' with non-zero value.",
         )
 
-    if user_op.pre_verification_gas < calldata_gas(user_op):
+    if user_op.pre_verification_gas < user_op.calldata_gas():
         raise HTTPException(
             status_code=422,
             detail="'pre_verification_gas' value is insufficient to cover the "
@@ -153,21 +155,6 @@ def is_contract(provider, address) -> bool:
 
     bytecode = provider.eth.get_code(address)
     return bool(len(bytecode))
-
-
-def calldata_gas(user_op) -> int:
-    user_op_dict = dict(user_op)
-    if "hash" in user_op_dict:
-        user_op_dict.pop("hash")
-
-    calldata_hex = "".join(
-        (v if isinstance(v, str) else hex(v))[2:].zfill(64)
-        for v in user_op_dict.values()
-    )
-    calldata_bytes = bytes.fromhex(calldata_hex)
-    zero_bytes_count = calldata_bytes.count(0)
-
-    return 4 * zero_bytes_count + 16 * (len(calldata_bytes) - zero_bytes_count)
 
 
 def base_fee(provider):

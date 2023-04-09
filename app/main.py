@@ -10,9 +10,10 @@ import db.service
 from app.config import settings
 from db.utils import get_session
 from utils.validation import validate_address, validate_hex, validate_user_op
+from utils.user_op import UserOpBase
 
 
-class UserOp(BaseModel):
+class UserOp(BaseModel, UserOpBase):
     sender: str
     nonce: int
     init_code: str
@@ -62,18 +63,7 @@ class UserOp(BaseModel):
     def fill_hash(self) -> None:
         data = "".join(
             (hex(v) if isinstance(v, int) else v)[2:].zfill(64)
-            for v in [
-                self.sender,
-                self.nonce,
-                self.init_code,
-                self.call_data,
-                self.call_gas_limit,
-                self.verification_gas_limit,
-                self.pre_verification_gas,
-                self.max_fee_per_gas,
-                self.max_priority_fee_per_gas,
-                self.paymaster_and_data,
-            ]
+            for v in self.values()[:-1]
         )
 
         self.hash = "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
