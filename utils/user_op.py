@@ -1,28 +1,42 @@
 import hashlib
-from abc import ABC
-from dataclasses import dataclass, fields
 
 import ecdsa
 from eth_abi import encode
+from pydantic import BaseModel, Extra
 
 import app.constants as constants
 from app.config import settings
 
-DEFAULTS_FOR_USER_OP = [
-    "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
-    0,
-    0,
-    "0x",
-    constants.CALL_GAS,
-    settings.max_verification_gas_limit,
-    21000,
-    settings.min_max_fee_per_gas,
-    settings.min_max_priority_fee_per_gas,
-    "0x",
-]
+DEFAULTS_FOR_USER_OP = {
+    "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
+    "nonce": 0,
+    "init_code": 0,
+    "call_data": "0x",
+    "call_gas_limit": constants.CALL_GAS,
+    "verification_gas_limit": settings.max_verification_gas_limit,
+    "pre_verification_gas": 21000,
+    "max_fee_per_gas": settings.min_max_fee_per_gas,
+    "max_priority_fee_per_gas": settings.min_max_priority_fee_per_gas,
+    "paymaster_and_data": "0x",
+}
 
 
-class UserOpBase(ABC):
+class UserOp(BaseModel):
+    sender: str
+    nonce: int
+    init_code: str
+    call_data: str
+    call_gas_limit: int
+    verification_gas_limit: int
+    pre_verification_gas: int
+    max_fee_per_gas: int
+    max_priority_fee_per_gas: int
+    paymaster_and_data: str
+    signature: str = "0x"
+
+    class Config:
+        extra = Extra.allow
+
     def calldata_gas(self) -> int:
         calldata_bytes = self.encode()
         zero_bytes_count = calldata_bytes.count(0)
@@ -31,7 +45,7 @@ class UserOpBase(ABC):
             len(calldata_bytes) - zero_bytes_count
         )
 
-    def encode(self):
+    def encode(self) -> bytes:
         return encode(
             [
                 "address",  # sender
@@ -59,6 +73,20 @@ class UserOpBase(ABC):
             ],
         )
 
+    def fill_hash(self) -> None:
+        data = "".join(
+            (hex(v) if isinstance(v, int) else v)[2:].zfill(64)
+            for v in self.values()[:-1]
+        )
+
+        self.hash = "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
+
+    def sign(self, private_key) -> None:
+        sk = ecdsa.SigningKey.from_string(
+            bytes.fromhex(private_key), curve=ecdsa.SECP256k1
+        )
+        self.signature = "0x" + sk.sign(self.encode()).hex()
+
     def values(self) -> list:
         return [
             self.sender,
@@ -77,34 +105,3 @@ class UserOpBase(ABC):
     @classmethod
     def _keccak256(cls, data) -> str:
         return hashlib.sha3_256(bytes.fromhex(data[2:])).digest().hex()
-
-
-@dataclass
-class UserOp(UserOpBase):
-    sender: str
-    nonce: int
-    init_code: str
-    call_data: str
-    call_gas_limit: int
-    verification_gas_limit: int
-    pre_verification_gas: int
-    max_fee_per_gas: int
-    max_priority_fee_per_gas: int
-    paymaster_and_data: str
-    signature: str = "0x"
-
-    def sign(self, private_key) -> None:
-        sk = ecdsa.SigningKey.from_string(
-            bytes.fromhex(private_key), curve=ecdsa.SECP256k1
-        )
-        self.signature = "0x" + sk.sign(self.encode()).hex()
-
-    def json(self) -> dict:
-        return {
-            field.name: self._to_hex(getattr(self, field.name))
-            for field in fields(type(self))
-        }
-
-    @classmethod
-    def _to_hex(cls, v) -> str:
-        return v if isinstance(v, str) else hex(v)

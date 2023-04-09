@@ -1,34 +1,18 @@
-import hashlib
 from datetime import datetime
 
 import web3
 from fastapi import Depends, FastAPI, HTTPException
-from pydantic import BaseModel, Extra, validator
+from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import db.service
+import utils.user_op
 from app.config import settings
 from db.utils import get_session
 from utils.validation import validate_address, validate_hex, validate_user_op
-from utils.user_op import UserOpBase
 
 
-class UserOp(BaseModel, UserOpBase):
-    sender: str
-    nonce: int
-    init_code: str
-    call_data: str
-    call_gas_limit: int
-    verification_gas_limit: int
-    pre_verification_gas: int
-    max_fee_per_gas: int
-    max_priority_fee_per_gas: int
-    paymaster_and_data: str
-    signature: str
-
-    class Config:
-        extra = Extra.allow
-
+class UserOp(utils.user_op.UserOp):
     _validate_address = validator("sender", allow_reuse=True)(validate_address)
 
     @validator(
@@ -59,14 +43,6 @@ class UserOp(BaseModel, UserOpBase):
                 status_code=422, detail="Incorrect bytes string."
             )
         return v
-
-    def fill_hash(self) -> None:
-        data = "".join(
-            (hex(v) if isinstance(v, int) else v)[2:].zfill(64)
-            for v in self.values()[:-1]
-        )
-
-        self.hash = "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
 
 
 class SendRequest(BaseModel):

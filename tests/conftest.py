@@ -81,7 +81,16 @@ class SendRequest:
         self.entry_point = entry_point
 
     def json(self):
-        return {"user_op": self.user_op.json(), "entry_point": self.entry_point}
+        return {
+            "user_op": {
+                k: self._to_hex(v) for k, v in self.user_op.dict().items()
+            },
+            "entry_point": self.entry_point,
+        }
+
+    @classmethod
+    def _to_hex(cls, v) -> str:
+        return v if isinstance(v, str) else hex(v)
 
 
 @pytest.fixture(scope="session")
@@ -133,7 +142,7 @@ async def session(
 
 @pytest.fixture(scope="function")
 def send_request(contracts):
-    user_op = UserOp(*DEFAULTS_FOR_USER_OP)
+    user_op = UserOp(**DEFAULTS_FOR_USER_OP)
     user_op.init_code = contracts.simple_account_factory.address
     user_op.sign("1".zfill(64))
     return SendRequest(user_op, contracts.entry_point.address)
