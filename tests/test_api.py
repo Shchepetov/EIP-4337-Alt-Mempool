@@ -10,7 +10,7 @@ from app.config import settings
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_accepts_user_op(client, send_request):
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -126,7 +126,7 @@ async def test_rejects_user_op_with_odd_hexadecimal_chars_in_byte_fields(
 async def test_saves_correct_user_op(client, send_request):
     request_json = send_request.json()
     user_op_hash = await client.send_user_op(request_json)
-    user_op = await client.get_user_op(user_op_hash, status_code=200)
+    user_op = await client.get_user_op(user_op_hash)
 
     for field in request_json["user_op"].keys():
         assert user_op[field] == getattr(send_request.user_op, field)
@@ -163,13 +163,11 @@ async def test_replaces_user_op_with_same_sender(client, send_request):
     user_op_1_hash = await client.send_user_op(send_request.json())
 
     send_request.user_op.nonce += 1
-    user_op_2_hash = await client.send_user_op(
-        send_request.json(), status_code=200
-    )
+    user_op_2_hash = await client.send_user_op(send_request.json())
 
     assert await client.get_user_op(user_op_1_hash) is None
 
-    user_op = await client.get_user_op(user_op_2_hash, status_code=200)
+    user_op = await client.get_user_op(user_op_2_hash)
     assert user_op["hash"] == user_op_2_hash
 
 
@@ -206,7 +204,7 @@ async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     send_request.user_op.verification_gas_limit = (
         incorrect_verification_gas_limit - 1
     )
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -243,7 +241,7 @@ async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
     send_request.user_op.max_priority_fee_per_gas = (
         incorrect_max_priority_fee_per_gas + 1
     )
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -272,7 +270,7 @@ async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
     send_request.user_op.max_priority_fee_per_gas = (
         incorrect_max_priority_fee_per_gas - 1
     )
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -303,7 +301,7 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
     )
 
     send_request.user_op.paymaster_and_data = contracts.paymaster.address
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -332,7 +330,7 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
         },
     )
 
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -349,7 +347,7 @@ async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
     )
 
     send_request.user_op.call_gas_limit = constants.CALL_GAS
-    await client.send_user_op(send_request.json(), status_code=200)
+    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation

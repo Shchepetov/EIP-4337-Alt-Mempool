@@ -41,21 +41,27 @@ class AppClient:
         self,
         method: str,
         json: dict,
-        status_code=None,
         expected_error_message=None,
     ):
         url = f"/api/{method}"
         response = await self.client.post(url, json=json)
         response_json = response.json()
 
-        if status_code is not None:
-            assert response.status_code == status_code
+        if response.status_code == 200:
+            if expected_error_message is not None:
+                raise Exception(
+                    f'Expected error message "{expected_error_message}", but response code is 200'
+                )
+            return response_json
 
         if expected_error_message is not None:
-            assert "detail" in response_json
-            assert expected_error_message in response_json["detail"]
+            if expected_error_message not in response_json["detail"]:
+                raise Exception(f'Expected error message "{expected_error_message}", but got "{response_json["detail"]}"')
+            return response_json
 
-        return response_json
+        raise Exception(f'{response_json["detail"]}')
+
+
 
 
 class TestContracts:
