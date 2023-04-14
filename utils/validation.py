@@ -45,19 +45,12 @@ async def validate_user_op(
     entry_point_address,
     expires_soon_interval,
     check_forbidden_opcodes=False,
-) -> (SimulationResult):
+) -> SimulationResult:
     provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
     entry_point = EntryPoint.at(entry_point_address)
 
     await validate_before_simulation(provider, session, user_op, entry_point)
-    # entry_point.simulateValidation(user_op.values())
-
-    simulation_result = SimulationResult()
-    simulation_result.valid_after = 0
-    simulation_result.valid_until = 0
-    simulation_result.sig_failed = False
-
-    return simulation_result
+    return run_simulation(user_op, entry_point)
 
 
 async def validate_before_simulation(provider, session, user_op, entry_point):
@@ -86,7 +79,7 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
             "is the minimum gas cost of a 'CALL' with non-zero value.",
         )
 
-    if user_op.pre_verification_gas < user_op.calldata_gas():
+    if user_op.pre_verification_gas < user_op.get_calldata_gas():
         raise HTTPException(
             status_code=422,
             detail="'pre_verification_gas' value is insufficient to cover the "
@@ -132,12 +125,9 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
                 "represent a smart contract address.",
             )
 
-        max_gas_cost = user_op.max_fee_per_gas * (
-            user_op.pre_verification_gas
-            + user_op.verification_gas_limit
-            + user_op.call_gas_limit
-        )
-        if entry_point.balanceOf(paymaster) < max_gas_cost:
+        if entry_point.balanceOf(paymaster) < user_op.get_required_prefund(
+            with_paymaster=True
+        ):
             raise HTTPException(
                 status_code=422,
                 detail="The paymaster does not have sufficient funds to pay "
@@ -162,3 +152,26 @@ def base_fee(provider):
     return (
         latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
     )
+
+
+def run_simulation(user_op, entry_point) -> SimulationResult:
+    try:
+        entry_point.simulateValidation(user_op.values())
+    except Exception as e:
+        err_msg = e.revert_msg.replace("typed error: ", "")
+        if err_msg[:10].lower() not in (
+            "0xe0cff05f"  # ValidationResult
+            "0xf2a8087f"  # ValidationResultWithAggregation
+        ):
+            raise HTTPException(
+                status_code=422,
+                detail=f"The simulation of the UserOp has failed with an "
+                f"error: {err_msg}",
+            )
+
+    simulation_result = SimulationResult()
+    simulation_result.valid_after = 0
+    simulation_result.valid_until = 0
+    simulation_result.sig_failed = False
+
+    return simulation_result

@@ -7,9 +7,10 @@ from brownie import (
     accounts,
     chain,
     web3,
-    DepositPaymaster,
+    TestPaymasterAcceptAll,
     EntryPoint,
     SimpleAccountFactory,
+    TestToken,
 )
 from httpx import AsyncClient
 from sqlalchemy import delete
@@ -64,14 +65,14 @@ class TestContracts:
             SimpleAccountFactory, self.entry_point.address
         )
         self.paymaster = accounts[0].deploy(
-            DepositPaymaster, self.entry_point.address
+            TestPaymasterAcceptAll, self.entry_point.address
         )
+        self.token = accounts[0].deploy(TestToken)
 
         self.entry_point.depositTo(
             self.paymaster.address, {"value": "10 ether"}
         )
 
-        chain.mine()
         chain.snapshot()
 
 
@@ -142,7 +143,20 @@ async def session(
 
 @pytest.fixture(scope="function")
 def send_request(contracts):
+    salt = 1
+
     user_op = UserOp(**DEFAULTS_FOR_USER_OP)
-    user_op.init_code = contracts.simple_account_factory.address
-    user_op.sign("1".zfill(64))
+    user_op.sender = contracts.simple_account_factory.getAddress(
+        accounts[0].address, salt
+    )
+    user_op.init_code = (
+        contracts.simple_account_factory.address
+        + contracts.simple_account_factory.createAccount.encode_input(
+            accounts[0].address, salt
+        )[2:]
+    )
+    user_op.paymaster_and_data = contracts.paymaster.address
+
+    user_op.sign(accounts[0].address, contracts.entry_point)
+
     return SendRequest(user_op, contracts.entry_point.address)

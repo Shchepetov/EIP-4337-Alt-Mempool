@@ -1,23 +1,21 @@
-import hashlib
-
-import ecdsa
-from eth_abi import encode
+import eth_abi
+from brownie import web3
 from pydantic import BaseModel, Extra
 
-import app.constants as constants
 from app.config import settings
 
 DEFAULTS_FOR_USER_OP = {
     "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
-    "nonce": 0,
-    "init_code": 0,
+    "nonce": 1,
+    "init_code": "0x",
     "call_data": "0x",
-    "call_gas_limit": constants.CALL_GAS,
+    "call_gas_limit": 200000000,
     "verification_gas_limit": settings.max_verification_gas_limit,
     "pre_verification_gas": 21000,
     "max_fee_per_gas": settings.min_max_fee_per_gas,
     "max_priority_fee_per_gas": settings.min_max_priority_fee_per_gas,
     "paymaster_and_data": "0x",
+    "signature": "0x0",
 }
 
 
@@ -32,12 +30,12 @@ class UserOp(BaseModel):
     max_fee_per_gas: int
     max_priority_fee_per_gas: int
     paymaster_and_data: str
-    signature: str = "0x"
+    signature: str
 
     class Config:
         extra = Extra.allow
 
-    def calldata_gas(self) -> int:
+    def get_calldata_gas(self) -> int:
         calldata_bytes = self.encode()
         zero_bytes_count = calldata_bytes.count(0)
 
@@ -45,47 +43,55 @@ class UserOp(BaseModel):
             len(calldata_bytes) - zero_bytes_count
         )
 
-    def encode(self) -> bytes:
-        return encode(
-            [
-                "address",  # sender
-                "uint256",  # nonce
-                "bytes32",  # init_code
-                "bytes32",  # call_data
-                "uint256",  # call_gas_limit
-                "uint",  # verification_gas_limit
-                "uint",  # pre_verification_gas
-                "uint256",  # max_fee_per_gas
-                "uint256",  # max_priority_fee_per_gas
-                "bytes32",  # paymaster_and_data
-            ],
-            [
-                self.sender,
-                self.nonce,
-                bytes.fromhex(self._keccak256(self.init_code)),
-                bytes.fromhex(self._keccak256(self.call_data)),
-                self.call_gas_limit,
-                self.verification_gas_limit,
-                self.pre_verification_gas,
-                self.max_fee_per_gas,
-                self.max_priority_fee_per_gas,
-                bytes.fromhex(self._keccak256(self.paymaster_and_data)),
-            ],
+    def get_required_prefund(self, with_paymaster=False):
+        return self.max_fee_per_gas * (
+            self.pre_verification_gas
+            + self.verification_gas_limit * (3 if with_paymaster else 1)
+            + self.call_gas_limit
         )
 
     def fill_hash(self) -> None:
-        data = "".join(
-            (hex(v) if isinstance(v, int) else v)[2:].zfill(64)
-            for v in self.values()[:-1]
-        )
+        self.hash = web3.keccak(self.encode(with_signature=False)).hex()
 
-        self.hash = "0x" + hashlib.sha3_256(bytes.fromhex(data)).digest().hex()
+    def encode(self, with_signature=True) -> bytes:
+        types = [
+            "address",  # sender
+            "uint256",  # nonce
+            "bytes",  # init_code
+            "bytes",  # call_data
+            "uint256",  # call_gas_limit
+            "uint256",  # verification_gas_limit
+            "uint256",  # pre_verification_gas
+            "uint256",  # max_fee_per_gas
+            "uint256",  # max_priority_fee_per_gas
+            "bytes",  # paymaster_and_data
+        ]
+        values = [
+            self.sender,
+            self.nonce,
+            web3.toBytes(hexstr=self.init_code),
+            web3.toBytes(hexstr=self.call_data),
+            self.call_gas_limit,
+            self.verification_gas_limit,
+            self.pre_verification_gas,
+            self.max_fee_per_gas,
+            self.max_priority_fee_per_gas,
+            web3.toBytes(hexstr=self.paymaster_and_data),
+        ]
 
-    def sign(self, private_key) -> None:
-        sk = ecdsa.SigningKey.from_string(
-            bytes.fromhex(private_key), curve=ecdsa.SECP256k1
+        if with_signature:
+            types.append("bytes")
+            values.append(web3.toBytes(hexstr=self.signature))
+
+        return eth_abi.encode(types, values)
+
+    def sign(self, owner_address, entry_point):
+        self.signature = (
+            web3.eth.sign(
+                owner_address, data=entry_point.getUserOpHash(self.values())
+            ).hex()[:-2]
+            + "1c"
         )
-        self.signature = "0x" + sk.sign(self.encode()).hex()
 
     def values(self) -> list:
         return [
@@ -101,7 +107,3 @@ class UserOp(BaseModel):
             self.paymaster_and_data,
             self.signature,
         ]
-
-    @classmethod
-    def _keccak256(cls, data) -> str:
-        return hashlib.sha3_256(bytes.fromhex(data[2:])).digest().hex()

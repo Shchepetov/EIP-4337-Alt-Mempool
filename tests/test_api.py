@@ -1,7 +1,7 @@
 import copy
 
 import pytest
-from brownie import accounts, web3
+from brownie import accounts, web3, TestPaymasterAcceptAll
 
 import app.constants as constants
 from app.config import settings
@@ -78,13 +78,6 @@ async def test_rejects_user_op_with_values_less_than_20_bytes_in_address_fields(
         send_request.json(),
         expected_error_message="Must be an Ethereum address",
     )
-
-
-@pytest.mark.eth_sendUserOperation
-@pytest.mark.asyncio
-async def test_accepts_user_op_with_0x_sender(client, send_request):
-    send_request.user_op.sender = "0x"
-    await client.send_user_op(send_request.json(), status_code=200)
 
 
 @pytest.mark.eth_sendUserOperation
@@ -178,22 +171,6 @@ async def test_replaces_user_op_with_same_sender(client, send_request):
 
     user_op = await client.get_user_op(user_op_2_hash, status_code=200)
     assert user_op["hash"] == user_op_2_hash
-
-
-@pytest.mark.eth_sendUserOperation
-@pytest.mark.asyncio
-async def test_not_replaces_user_op_with_sender_0x(client, send_request):
-    send_request.user_op.sender = "0x"
-    user_op_1_hash = await client.send_user_op(send_request.json())
-
-    send_request.user_op.nonce += 1
-    user_op_2_hash = await client.send_user_op(send_request.json())
-
-    user_op_1 = await client.get_user_op(user_op_1_hash)
-    assert user_op_1["hash"] == user_op_1_hash
-
-    user_op_2 = await client.get_user_op(user_op_2_hash)
-    assert user_op_2["hash"] == user_op_2_hash
 
 
 @pytest.mark.eth_sendUserOperation
@@ -303,7 +280,7 @@ async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
 async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
     client, send_request
 ):
-    incorrect_pre_verification_gas = send_request.user_op.calldata_gas() - 1
+    incorrect_pre_verification_gas = send_request.user_op.get_calldata_gas() - 1
     send_request.user_op.pre_verification_gas = incorrect_pre_verification_gas
     await client.send_user_op(
         send_request.json(),
@@ -334,20 +311,27 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
 async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     client, contracts, send_request
 ):
-    paymaster_address = contracts.simple_account_factory.address
-    send_request.user_op.paymaster_and_data = paymaster_address
+    new_paymaster = accounts[0].deploy(
+        TestPaymasterAcceptAll, contracts.entry_point.address
+    )
+    send_request.user_op.paymaster_and_data = new_paymaster.address
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+
     await client.send_user_op(
         send_request.json(),
         expected_error_message="The paymaster does not have sufficient funds "
         "to pay for the UserOp",
     )
 
-    max_gas_cost = send_request.user_op.max_fee_per_gas * (
-        send_request.user_op.pre_verification_gas
-        + send_request.user_op.verification_gas_limit
-        + send_request.user_op.call_gas_limit
+    contracts.entry_point.depositTo(
+        new_paymaster.address,
+        {
+            "value": send_request.user_op.get_required_prefund(
+                with_paymaster=True
+            )
+        },
     )
-    contracts.entry_point.depositTo(paymaster_address, {"value": max_gas_cost})
+
     await client.send_user_op(send_request.json(), status_code=200)
 
 
@@ -368,38 +352,11 @@ async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
     await client.send_user_op(send_request.json(), status_code=200)
 
 
-# @pytest.mark.eth_sendUserOperation
-# @pytest.mark.asyncio
-# async def test_simulate_user_op(client, contracts, send_request):
-#     from web3 import Web3
-#
-#     w3 = Web3(Web3.HTTPProvider("http://localhost:8545"))
-#
-#     owner = accounts.add()
-#     owner_address = owner.address
-#     salt = 1
-#     created_account_address = contracts.simple_account_factory.getAddress(
-#         owner_address, salt
-#     )
-#     print(created_account_address)
-#     init_code = (
-#         contracts.simple_account_factory.address
-#         + "5fbfb9cf"
-#         + owner_address[2:].zfill(64)
-#         + str(salt).zfill(64)
-#     )
-#     user_op = UserOp(
-#         created_account_address,
-#         1,
-#         init_code,
-#         hex(0),
-#         1e6,
-#         1e6,
-#         1e6,
-#         1e6,
-#         1e3,
-#         contracts.paymaster.address + 130 * "0",
-#     )
-#     user_op.sign()
-#     print(f"Signature: {user_op.signature}")
-#     contracts.entry_point.simulateValidation(user_op.json)
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_failing_simulation(client, send_request):
+    send_request.user_op.signature = send_request.user_op.signature[:-2]
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The simulation of the UserOp has failed",
+    )

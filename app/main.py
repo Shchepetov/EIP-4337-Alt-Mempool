@@ -1,6 +1,5 @@
 from datetime import datetime
 
-import web3
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -85,10 +84,7 @@ async def send_user_operation(
         check_forbidden_opcodes=True,
     )
 
-    if request.user_op.sender != web3.constants.ADDRESS_ZERO:
-        await db.service.delete_user_op_by_sender(
-            session, request.user_op.sender
-        )
+    await db.service.delete_user_op_by_sender(session, request.user_op.sender)
 
     await db.service.add_user_op(
         session,
