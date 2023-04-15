@@ -4,6 +4,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.constants as constants
 import db.service
 import utils.user_op
 from app.config import settings
@@ -75,7 +76,7 @@ async def send_user_operation(
 ):
     request.user_op.fill_hash()
 
-    validation_result = await validate_user_op(
+    validation_result, expires_at = await validate_user_op(
         session,
         settings.rpc_server,
         request.user_op,
@@ -85,13 +86,15 @@ async def send_user_operation(
     )
 
     await db.service.delete_user_op_by_sender(session, request.user_op.sender)
-
     await db.service.add_user_op(
         session,
         request.user_op,
         entry_point=request.entry_point,
         valid_after=datetime.fromtimestamp(validation_result.valid_after),
-        valid_until=datetime.fromtimestamp(validation_result.valid_until),
+        valid_until=datetime.fromtimestamp(
+            min(validation_result.valid_until, constants.MAX_TIMESTAMP)
+        ),
+        expires_at=datetime.fromtimestamp(expires_at),
     )
 
     await session.commit()

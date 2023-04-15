@@ -7,6 +7,7 @@ from brownie import (
     accounts,
     chain,
     web3,
+    TestExpirePaymaster,
     TestPaymasterAcceptAll,
     EntryPoint,
     SimpleAccountFactory,
@@ -56,12 +57,12 @@ class AppClient:
 
         if expected_error_message is not None:
             if expected_error_message not in response_json["detail"]:
-                raise Exception(f'Expected error message "{expected_error_message}", but got "{response_json["detail"]}"')
+                raise Exception(
+                    f'Expected error message "{expected_error_message}", but got "{response_json["detail"]}"'
+                )
             return response_json
 
         raise Exception(f'{response_json["detail"]}')
-
-
 
 
 class TestContracts:
@@ -73,11 +74,16 @@ class TestContracts:
         self.paymaster = accounts[0].deploy(
             TestPaymasterAcceptAll, self.entry_point.address
         )
+        self.expire_paymaster = accounts[0].deploy(
+            TestExpirePaymaster, self.entry_point.address
+        )
         self.token = accounts[0].deploy(TestToken)
 
-        self.entry_point.depositTo(
-            self.paymaster.address, {"value": "10 ether"}
-        )
+        for address in (
+            self.paymaster.address,
+            self.expire_paymaster.address,
+        ):
+            self.entry_point.depositTo(address, {"value": "10 ether"})
 
         chain.snapshot()
 

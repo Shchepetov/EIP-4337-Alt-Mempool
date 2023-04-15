@@ -1,4 +1,5 @@
 import re
+import time
 
 import eth_abi
 import web3
@@ -13,22 +14,14 @@ from app.config import settings
 class ValidationResult:
     def __init__(self, validation_result_string):
         types = [
-            "uint256",
-            "uint256",
-            "bool",
-            "uint48",
-            "uint48",
-            "bytes",
-            "uint256",
-            "uint256",
-            "uint256",
-            "uint256",
-            "uint256",
-            "uint256",
+            "(uint256,uint256,bool,uint48,uint48,bytes)",
+            "(uint256,uint256)",
+            "(uint256,uint256)",
+            "(uint256,uint256)",
         ]
         selector = validation_result_string[:10].lower()
         if selector == "0xf2a8087f":  # ValidationResultWithAggregation
-            types += ["address", "uint256", "uint256"]
+            types.append("(address,(uint256,uint256))")
         elif selector != "0xe0cff05f":  # ValidationResult
             raise HTTPException(
                 status_code=422,
@@ -38,17 +31,14 @@ class ValidationResult:
         decoded = eth_abi.decode(
             types, bytes.fromhex(validation_result_string[10:])
         )
-        for (i, attr) in enumerate(
-            (
-                "pre_op_gas",
-                "prefund",
-                "sig_failed",
-                "valid_after",
-                "valid_until",
-                "paymasterContext",
-            )
-        ):
-            setattr(self, attr, decoded[i])
+        (
+            self.pre_op_gas,
+            self.prefund,
+            self.sig_failed,
+            self.valid_after,
+            self.valid_until,
+            self.paymaster_context,
+        ) = decoded[0]
 
 
 def validate_address(v):
@@ -190,12 +180,35 @@ def base_fee(provider):
     )
 
 
-def run_simulation(user_op, entry_point) -> ValidationResult:
+def run_simulation(user_op, entry_point) -> (ValidationResult, int):
     try:
         entry_point.simulateValidation(user_op.values())
         raise HTTPException(
-            status_code=500, detail="The simulation didn't" "revert"
+            status_code=500, detail="The simulation didn't revert."
         )
     except Exception as e:
         err_msg = e.revert_msg.replace("typed error: ", "")
-        return ValidationResult(err_msg)
+        pass
+    validation_result = ValidationResult(err_msg)
+    current_timestamp = int(time.time())
+
+    if validation_result.valid_until <= current_timestamp:
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to add the UserOp as it is expired.",
+        )
+    if (
+        validation_result.valid_after
+        > current_timestamp + settings.user_op_lifetime
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="Unable to add the UserOp as it expires in the pool before "
+            "its validity period starts.",
+        )
+    expires_at = min(
+        current_timestamp + settings.user_op_lifetime,
+        validation_result.valid_until,
+    )
+
+    return validation_result, expires_at
