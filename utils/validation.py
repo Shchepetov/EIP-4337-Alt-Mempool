@@ -1,5 +1,6 @@
 import re
 
+import eth_abi
 import web3
 from brownie import EntryPoint
 from fastapi import HTTPException
@@ -9,10 +10,45 @@ import db.service
 from app.config import settings
 
 
-class SimulationResult:
-    sig_failed: bool
-    valid_after: int
-    valid_until: int
+class ValidationResult:
+    def __init__(self, validation_result_string):
+        types = [
+            "uint256",
+            "uint256",
+            "bool",
+            "uint48",
+            "uint48",
+            "bytes",
+            "uint256",
+            "uint256",
+            "uint256",
+            "uint256",
+            "uint256",
+            "uint256",
+        ]
+        selector = validation_result_string[:10].lower()
+        if selector == "0xf2a8087f":  # ValidationResultWithAggregation
+            types += ["address", "uint256", "uint256"]
+        elif selector != "0xe0cff05f":  # ValidationResult
+            raise HTTPException(
+                status_code=422,
+                detail=f"The simulation of the UserOp has failed with an "
+                f"error: {validation_result_string}",
+            )
+        decoded = eth_abi.decode(
+            types, bytes.fromhex(validation_result_string[10:])
+        )
+        for (i, attr) in enumerate(
+            (
+                "pre_op_gas",
+                "prefund",
+                "sig_failed",
+                "valid_after",
+                "valid_until",
+                "paymasterContext",
+            )
+        ):
+            setattr(self, attr, decoded[i])
 
 
 def validate_address(v):
@@ -45,7 +81,7 @@ async def validate_user_op(
     entry_point_address,
     expires_soon_interval,
     check_forbidden_opcodes=False,
-) -> SimulationResult:
+) -> ValidationResult:
     provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
     entry_point = EntryPoint.at(entry_point_address)
 
@@ -154,24 +190,12 @@ def base_fee(provider):
     )
 
 
-def run_simulation(user_op, entry_point) -> SimulationResult:
+def run_simulation(user_op, entry_point) -> ValidationResult:
     try:
         entry_point.simulateValidation(user_op.values())
+        raise HTTPException(
+            status_code=500, detail="The simulation didn't" "revert"
+        )
     except Exception as e:
         err_msg = e.revert_msg.replace("typed error: ", "")
-        if err_msg[:10].lower() not in (
-            "0xe0cff05f"  # ValidationResult
-            "0xf2a8087f"  # ValidationResultWithAggregation
-        ):
-            raise HTTPException(
-                status_code=422,
-                detail=f"The simulation of the UserOp has failed with an "
-                f"error: {err_msg}",
-            )
-
-    simulation_result = SimulationResult()
-    simulation_result.valid_after = 0
-    simulation_result.valid_until = 0
-    simulation_result.sig_failed = False
-
-    return simulation_result
+        return ValidationResult(err_msg)
