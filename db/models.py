@@ -73,7 +73,7 @@ class Bytecode(Base):
     __tablename__ = "bytecodes"
 
     id = Column(Integer, primary_key=True)
-    bytecode_hash = Column(String(length=66), unique=True, index=True)
+    hash = Column(String(length=66), unique=True, index=True)
     is_trusted = Column(Boolean)
     user_ops = Relationship(
         "UserOp",

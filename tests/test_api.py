@@ -7,6 +7,7 @@ import pytest
 from brownie import accounts, web3, TestPaymasterAcceptAll
 
 import app.constants as constants
+import db.service
 from app.config import settings
 
 
@@ -490,3 +491,25 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
     assert int(
         datetime.datetime.fromisoformat(user_op["expires_at"]).timestamp()
     ) == pytest.approx(now + settings.user_op_lifetime, abs=5)
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_banned_bytecodes(
+    client, session, contracts, send_request
+):
+    bytecode_hash = web3.keccak(
+        web3.eth.get_code(contracts.paymaster.address)
+    ).hex()
+    await db.service.update_bytecode(session, bytecode_hash, False)
+    await session.commit()
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The UserOp contains calls to smart contracts, "
+        "the bytecode of which is listed in the blacklist",
+    )
+
+    await db.service.update_bytecode(session, bytecode_hash, True)
+    await session.commit()
+    await client.send_user_op(send_request.json())
+

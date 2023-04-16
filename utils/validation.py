@@ -77,6 +77,13 @@ async def validate_user_op(
         web3.keccak(web3.eth.get_code(address)).hex()
         for address in used_contracts
     ]
+    if await db.service.has_banned_bytecodes(session, used_bytecode_hashes):
+        raise HTTPException(
+            status_code=422,
+            detail="The UserOp contains calls to smart contracts, the bytecode "
+            "of which is listed in the blacklist.",
+        )
+
     validation_result, expires_at = run_simulation(user_op, entry_point)
 
     return validation_result, expires_at, used_bytecode_hashes

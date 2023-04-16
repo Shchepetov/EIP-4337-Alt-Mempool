@@ -17,9 +17,9 @@ def initialize():
 
 
 @cli.command()
-async def update_bytecode(bytecode_hash: str, is_trusted: bool):
+async def update_bytecode(hash_: str, is_trusted: bool):
     session = await db.utils.get_session()
-    await db.service.update_bytecode(session, bytecode_hash, is_trusted)
+    await db.service.update_bytecode(session, hash_, is_trusted)
     await session.commit()
 
 
