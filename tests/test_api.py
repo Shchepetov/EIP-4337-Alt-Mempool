@@ -4,12 +4,12 @@ import time
 
 import eth_abi
 import pytest
-from brownie import accounts, web3, TestPaymasterAcceptAll
+from brownie import accounts, TestPaymasterAcceptAll
 
 import app.constants as constants
 import db.service
+import utils.web3
 from app.config import settings
-from utils.validation import get_bytecode_hash
 
 
 @pytest.mark.eth_sendUserOperation
@@ -254,11 +254,7 @@ async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
 async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
     client, send_request
 ):
-    latest_block = web3.eth.get_block("latest")
-    base_fee = (
-        latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
-    )
-
+    base_fee = utils.web3.get_base_fee()
     incorrect_max_priority_fee_per_gas = (
         send_request.user_op.max_fee_per_gas - base_fee + 1
     )
@@ -499,7 +495,7 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
 async def test_rejects_user_op_with_banned_bytecodes(
     client, session, contracts, send_request
 ):
-    factory_bytecode_hash = get_bytecode_hash(
+    factory_bytecode_hash = utils.web3.get_bytecode_hash(
         contracts.simple_account_factory.address
     )
     await db.service.update_bytecode(session, factory_bytecode_hash, False)
@@ -516,7 +512,7 @@ async def test_rejects_user_op_with_banned_bytecodes(
 async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
     client, session, contracts, send_request
 ):
-    factory_bytecode_hash = get_bytecode_hash(
+    factory_bytecode_hash = utils.web3.get_bytecode_hash(
         contracts.simple_account_factory.address
     )
     await db.service.update_bytecode(session, factory_bytecode_hash, True)
@@ -532,10 +528,12 @@ async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
 async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
     client, session, contracts, send_request
 ):
-    factory_bytecode_hash = get_bytecode_hash(
+    factory_bytecode_hash = utils.web3.get_bytecode_hash(
         contracts.simple_account_factory.address
     )
-    paymaster_bytecode_hash = get_bytecode_hash(contracts.paymaster.address)
+    paymaster_bytecode_hash = utils.web3.get_bytecode_hash(
+        contracts.paymaster.address
+    )
     await db.service.update_bytecode(session, factory_bytecode_hash, True)
     await db.service.update_bytecode(session, paymaster_bytecode_hash, True)
     await session.commit()
