@@ -13,8 +13,13 @@ async def add_user_op(session: AsyncSession, user_op, **extra_data):
     return user_op
 
 
+async def get_user_op_by_hash(session: AsyncSession, hash_: str) -> UserOp:
+    result = await session.execute(select(UserOp).where(UserOp.hash == hash_))
+    return result.scalar()
+
+
 async def add_user_op_bytecodes(
-    session: AsyncSession, user_op: UserOp, bytecode_hashes
+    session: AsyncSession, user_op: UserOp, bytecode_hashes: list[str]
 ):
     for bytecode_hash in bytecode_hashes:
         bytecode = (
@@ -31,9 +36,19 @@ async def add_user_op_bytecodes(
         user_op.bytecodes.append(bytecode)
 
 
-async def get_user_op_by_hash(session: AsyncSession, hash_: str) -> UserOp:
-    result = await session.execute(select(UserOp).where(UserOp.hash == hash_))
-    return result.scalar()
+async def update_bytecode(
+    session: AsyncSession, bytecode_hash: str, is_trusted: bool
+):
+    bytecode = (
+        await session.execute(
+            select(Bytecode).where(Bytecode.bytecode_hash == bytecode_hash)
+        )
+    ).scalar()
+    if bytecode:
+        bytecode.is_trusted = is_trusted
+    else:
+        bytecode = Bytecode(bytecode_hash=bytecode_hash, is_trusted=is_trusted)
+        session.add(bytecode)
 
 
 async def delete_user_op_by_sender(
