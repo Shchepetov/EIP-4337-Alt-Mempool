@@ -47,7 +47,18 @@ async def get_user_op_by_hash(session: AsyncSession, hash_: str) -> UserOp:
     return result.scalar()
 
 
-async def has_banned_bytecodes(
+async def all_trusted_bytecodes(
+    session: AsyncSession, bytecode_hashes: list[str]
+) -> bool:
+    result = await session.execute(
+        select(Bytecode)
+        .where(Bytecode.hash.in_(bytecode_hashes))
+        .where(Bytecode.is_trusted == True)
+    )
+    return bool(len(result.all()) == len(bytecode_hashes))
+
+
+async def any_banned_bytecodes(
     session: AsyncSession, bytecode_hashes: list[str]
 ) -> bool:
     result = await session.execute(

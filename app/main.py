@@ -78,6 +78,7 @@ async def send_user_operation(
 
     (
         validation_result,
+        is_trusted,
         expires_at,
         used_bytecode_hashes,
     ) = await validate_user_op(session, request.user_op, request.entry_point)
@@ -86,6 +87,7 @@ async def send_user_operation(
     user_op = await db.service.add_user_op(
         session,
         request.user_op,
+        is_trusted=is_trusted,
         entry_point=request.entry_point,
         valid_after=datetime.fromtimestamp(validation_result.valid_after),
         valid_until=datetime.fromtimestamp(

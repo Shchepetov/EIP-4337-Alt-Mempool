@@ -67,17 +67,16 @@ def validate_hex(v):
 
 async def validate_user_op(
     session, user_op, entry_point_address
-) -> (ValidationResult, int, hexbytes.HexBytes):
+) -> (ValidationResult, bool, int, hexbytes.HexBytes):
     entry_point = EntryPoint.at(entry_point_address)
 
     used_contracts = await validate_before_simulation(
         session, user_op, entry_point
     )
     used_bytecode_hashes = [
-        web3.keccak(web3.eth.get_code(address)).hex()
-        for address in used_contracts
+        get_bytecode_hash(address) for address in used_contracts
     ]
-    if await db.service.has_banned_bytecodes(session, used_bytecode_hashes):
+    if await db.service.any_banned_bytecodes(session, used_bytecode_hashes):
         raise HTTPException(
             status_code=422,
             detail="The UserOp contains calls to smart contracts, the bytecode "
@@ -86,7 +85,11 @@ async def validate_user_op(
 
     validation_result, expires_at = run_simulation(user_op, entry_point)
 
-    return validation_result, expires_at, used_bytecode_hashes
+    is_trusted = await db.service.all_trusted_bytecodes(
+        session, used_bytecode_hashes
+    )
+
+    return validation_result, is_trusted, expires_at, used_bytecode_hashes
 
 
 async def validate_before_simulation(
@@ -193,6 +196,10 @@ def base_fee():
     return (
         latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
     )
+
+
+def get_bytecode_hash(address):
+    return web3.keccak(web3.eth.get_code(address)).hex()
 
 
 def run_simulation(user_op, entry_point) -> (ValidationResult, int):

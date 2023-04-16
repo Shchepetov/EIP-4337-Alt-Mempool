@@ -9,6 +9,7 @@ from brownie import accounts, web3, TestPaymasterAcceptAll
 import app.constants as constants
 import db.service
 from app.config import settings
+from utils.validation import get_bytecode_hash
 
 
 @pytest.mark.eth_sendUserOperation
@@ -498,10 +499,10 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
 async def test_rejects_user_op_with_banned_bytecodes(
     client, session, contracts, send_request
 ):
-    bytecode_hash = web3.keccak(
-        web3.eth.get_code(contracts.paymaster.address)
-    ).hex()
-    await db.service.update_bytecode(session, bytecode_hash, False)
+    factory_bytecode_hash = get_bytecode_hash(
+        contracts.simple_account_factory.address
+    )
+    await db.service.update_bytecode(session, factory_bytecode_hash, False)
     await session.commit()
     await client.send_user_op(
         send_request.json(),
@@ -509,7 +510,36 @@ async def test_rejects_user_op_with_banned_bytecodes(
         "the bytecode of which is listed in the blacklist",
     )
 
-    await db.service.update_bytecode(session, bytecode_hash, True)
-    await session.commit()
-    await client.send_user_op(send_request.json())
 
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
+    client, session, contracts, send_request
+):
+    factory_bytecode_hash = get_bytecode_hash(
+        contracts.simple_account_factory.address
+    )
+    await db.service.update_bytecode(session, factory_bytecode_hash, True)
+    await session.commit()
+
+    user_op_hash = await client.send_user_op(send_request.json())
+    user_op = await client.get_user_op(user_op_hash)
+    assert not user_op["is_trusted"]
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
+    client, session, contracts, send_request
+):
+    factory_bytecode_hash = get_bytecode_hash(
+        contracts.simple_account_factory.address
+    )
+    paymaster_bytecode_hash = get_bytecode_hash(contracts.paymaster.address)
+    await db.service.update_bytecode(session, factory_bytecode_hash, True)
+    await db.service.update_bytecode(session, paymaster_bytecode_hash, True)
+    await session.commit()
+
+    user_op_hash = await client.send_user_op(send_request.json())
+    user_op = await client.get_user_op(user_op_hash)
+    assert user_op["is_trusted"]
