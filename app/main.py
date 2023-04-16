@@ -80,9 +80,7 @@ async def send_user_operation(
         validation_result,
         expires_at,
         used_bytecode_hashes,
-    ) = await validate_user_op(
-        session, settings.rpc_server, request.user_op, request.entry_point
-    )
+    ) = await validate_user_op(session, request.user_op, request.entry_point)
 
     await db.service.delete_user_op_by_sender(session, request.user_op.sender)
     user_op = await db.service.add_user_op(

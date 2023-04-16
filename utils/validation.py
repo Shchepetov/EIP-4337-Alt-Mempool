@@ -1,11 +1,10 @@
 import re
 import time
 
-import brownie.convert
 import eth_abi
 import hexbytes
-import web3
-from brownie import EntryPoint
+from brownie import ZERO_ADDRESS, web3, EntryPoint
+from brownie.convert import EthAddress
 from fastapi import HTTPException
 
 import app.constants as constants
@@ -46,7 +45,7 @@ class ValidationResult:
 def validate_address(v):
     v = validate_hex(v)
     if v == "0x":
-        return web3.constants.ADDRESS_ZERO
+        return ZERO_ADDRESS
     if not is_address(v):
         raise HTTPException(
             status_code=422, detail="Must be an Ethereum address."
@@ -67,16 +66,15 @@ def validate_hex(v):
 
 
 async def validate_user_op(
-    session, rpc_server, user_op, entry_point_address
+    session, user_op, entry_point_address
 ) -> (ValidationResult, int, hexbytes.HexBytes):
-    provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
     entry_point = EntryPoint.at(entry_point_address)
 
     used_contracts = await validate_before_simulation(
-        provider, session, user_op, entry_point
+        session, user_op, entry_point
     )
     used_bytecode_hashes = [
-        brownie.web3.keccak(provider.eth.get_code(address)).hex()
+        web3.keccak(web3.eth.get_code(address)).hex()
         for address in used_contracts
     ]
     validation_result, expires_at = run_simulation(user_op, entry_point)
@@ -85,8 +83,8 @@ async def validate_user_op(
 
 
 async def validate_before_simulation(
-    provider, session, user_op, entry_point
-) -> list[brownie.convert.EthAddress]:
+    session, user_op, entry_point
+) -> list[EthAddress]:
     used_contracts = []
     if not await is_unique(user_op, session):
         raise HTTPException(
@@ -94,14 +92,11 @@ async def validate_before_simulation(
             detail="UserOp is already in the pool.",
         )
 
-    if is_contract(provider, user_op.sender):
+    if is_contract(user_op.sender):
         used_contracts.append(user_op.sender)
     else:
         factory_address = user_op.init_code[:42]
-        if not (
-            is_address(factory_address)
-            and is_contract(provider, factory_address)
-        ):
+        if not (is_address(factory_address) and is_contract(factory_address)):
             raise HTTPException(
                 status_code=422,
                 detail="'sender' and the first 20 bytes of 'init_code' do not "
@@ -144,9 +139,7 @@ async def validate_before_simulation(
             f"limit of {settings.min_max_priority_fee_per_gas}.",
         )
 
-    if user_op.max_fee_per_gas < user_op.max_priority_fee_per_gas + base_fee(
-        provider
-    ):
+    if user_op.max_fee_per_gas < user_op.max_priority_fee_per_gas + base_fee():
         raise HTTPException(
             status_code=422,
             detail="'max_fee_per_gas' and 'max_priority_fee_per_gas' are not "
@@ -155,7 +148,7 @@ async def validate_before_simulation(
 
     if any(num != "0" for num in user_op.paymaster_and_data[2:]):
         paymaster_addresss = user_op.paymaster_and_data[:42]
-        if not is_contract(provider, paymaster_addresss):
+        if not is_contract(paymaster_addresss):
             raise HTTPException(
                 status_code=422,
                 detail="The first 20 bytes of 'paymaster_and_data' do not "
@@ -180,16 +173,16 @@ async def is_unique(user_op, session) -> bool:
     return await db.service.get_user_op_by_hash(session, user_op.hash) is None
 
 
-def is_contract(provider, address) -> bool:
-    if not is_address(address) or address == web3.constants.ADDRESS_ZERO:
+def is_contract(address) -> bool:
+    if not is_address(address) or address == ZERO_ADDRESS:
         return False
 
-    bytecode = provider.eth.get_code(address)
+    bytecode = web3.eth.get_code(address)
     return bool(len(bytecode))
 
 
-def base_fee(provider):
-    latest_block = provider.eth.get_block("latest")
+def base_fee():
+    latest_block = web3.eth.get_block("latest")
     return (
         latest_block["baseFeePerGas"] if "baseFeePerGas" in latest_block else 0
     )
