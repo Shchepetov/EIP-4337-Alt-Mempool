@@ -76,17 +76,16 @@ async def send_user_operation(
 ):
     request.user_op.fill_hash()
 
-    validation_result, expires_at = await validate_user_op(
-        session,
-        settings.rpc_server,
-        request.user_op,
-        request.entry_point,
-        settings.expires_soon_interval,
-        check_forbidden_opcodes=True,
+    (
+        validation_result,
+        expires_at,
+        used_bytecode_hashes,
+    ) = await validate_user_op(
+        session, settings.rpc_server, request.user_op, request.entry_point
     )
 
     await db.service.delete_user_op_by_sender(session, request.user_op.sender)
-    await db.service.add_user_op(
+    user_op = await db.service.add_user_op(
         session,
         request.user_op,
         entry_point=request.entry_point,
@@ -95,6 +94,9 @@ async def send_user_operation(
             min(validation_result.valid_until, constants.MAX_TIMESTAMP)
         ),
         expires_at=datetime.fromtimestamp(expires_at),
+    )
+    await db.service.add_user_op_bytecodes(
+        session, user_op, used_bytecode_hashes
     )
 
     await session.commit()

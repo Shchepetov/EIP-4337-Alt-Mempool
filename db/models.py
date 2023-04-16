@@ -7,7 +7,7 @@ from sqlalchemy import String
 from sqlalchemy import TIMESTAMP
 from sqlalchemy import Table
 from sqlalchemy import TypeDecorator
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Relationship
 
 from .base import Base
 
@@ -25,6 +25,18 @@ class Uint256(TypeDecorator):
         if value is not None:
             value = int.from_bytes(value, byteorder="big")
         return value
+
+
+user_ops_bytecodes = Table(
+    "user_ops_bytecodes",
+    Base.metadata,
+    Column(
+        "user_op_id", Integer, ForeignKey("user_ops.id", ondelete="CASCADE")
+    ),
+    Column(
+        "bytecode_id", Integer, ForeignKey("bytecodes.id", ondelete="CASCADE")
+    ),
+)
 
 
 class UserOp(Base):
@@ -49,8 +61,11 @@ class UserOp(Base):
     expires_at = Column(TIMESTAMP, index=True)
     is_trusted = Column(Boolean)
     tx_hash = Column(String(length=66))
-    bytecodes = relationship(
-        "Bytecode", secondary="user_ops_bytecodes", back_populates="user_ops"
+    bytecodes = Relationship(
+        "Bytecode",
+        secondary=user_ops_bytecodes,
+        back_populates="user_ops",
+        lazy="noload",
     )
 
 
@@ -60,8 +75,11 @@ class Bytecode(Base):
     id = Column(Integer, primary_key=True)
     bytecode_hash = Column(String(length=66), unique=True, index=True)
     is_trusted = Column(Boolean)
-    user_ops = relationship(
-        "UserOp", secondary="user_ops_bytecodes", back_populates="bytecodes"
+    user_ops = Relationship(
+        "UserOp",
+        secondary=user_ops_bytecodes,
+        back_populates="bytecodes",
+        lazy="noload",
     )
 
 
@@ -81,11 +99,3 @@ class User(Base):
     requests_last_minute_count = Column(Integer)
     requests_last_day_count = Column(Integer)
     counter_updated_at = Column(TIMESTAMP)
-
-
-user_ops_bytecodes = Table(
-    "user_ops_bytecodes",
-    Base.metadata,
-    Column("user_op_id", Integer, ForeignKey("user_ops.id")),
-    Column("bytecode_id", Integer, ForeignKey("bytecodes.id")),
-)

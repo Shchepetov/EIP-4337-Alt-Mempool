@@ -1,7 +1,9 @@
 import re
 import time
 
+import brownie.convert
 import eth_abi
+import hexbytes
 import web3
 from brownie import EntryPoint
 from fastapi import HTTPException
@@ -65,28 +67,36 @@ def validate_hex(v):
 
 
 async def validate_user_op(
-    session,
-    rpc_server,
-    user_op,
-    entry_point_address,
-    expires_soon_interval,
-    check_forbidden_opcodes=False,
-) -> ValidationResult:
+    session, rpc_server, user_op, entry_point_address
+) -> (ValidationResult, int, hexbytes.HexBytes):
     provider = web3.Web3(web3.Web3.HTTPProvider(rpc_server))
     entry_point = EntryPoint.at(entry_point_address)
 
-    await validate_before_simulation(provider, session, user_op, entry_point)
-    return run_simulation(user_op, entry_point)
+    used_contracts = await validate_before_simulation(
+        provider, session, user_op, entry_point
+    )
+    used_bytecode_hashes = [
+        brownie.web3.keccak(provider.eth.get_code(address)).hex()
+        for address in used_contracts
+    ]
+    validation_result, expires_at = run_simulation(user_op, entry_point)
+
+    return validation_result, expires_at, used_bytecode_hashes
 
 
-async def validate_before_simulation(provider, session, user_op, entry_point):
+async def validate_before_simulation(
+    provider, session, user_op, entry_point
+) -> list[brownie.convert.EthAddress]:
+    used_contracts = []
     if not await is_unique(user_op, session):
         raise HTTPException(
             status_code=422,
             detail="UserOp is already in the pool.",
         )
 
-    if not is_contract(provider, user_op.sender):
+    if is_contract(provider, user_op.sender):
+        used_contracts.append(user_op.sender)
+    else:
         factory_address = user_op.init_code[:42]
         if not (
             is_address(factory_address)
@@ -97,6 +107,7 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
                 detail="'sender' and the first 20 bytes of 'init_code' do not "
                 "represent a smart contract address.",
             )
+        used_contracts.append(factory_address)
 
     if user_op.call_gas_limit < constants.CALL_GAS:
         raise HTTPException(
@@ -143,22 +154,26 @@ async def validate_before_simulation(provider, session, user_op, entry_point):
         )
 
     if any(num != "0" for num in user_op.paymaster_and_data[2:]):
-        paymaster = user_op.paymaster_and_data[:42]
-        if not is_contract(provider, paymaster):
+        paymaster_addresss = user_op.paymaster_and_data[:42]
+        if not is_contract(provider, paymaster_addresss):
             raise HTTPException(
                 status_code=422,
                 detail="The first 20 bytes of 'paymaster_and_data' do not "
                 "represent a smart contract address.",
             )
 
-        if entry_point.balanceOf(paymaster) < user_op.get_required_prefund(
-            with_paymaster=True
-        ):
+        if entry_point.balanceOf(
+            paymaster_addresss
+        ) < user_op.get_required_prefund(with_paymaster=True):
             raise HTTPException(
                 status_code=422,
                 detail="The paymaster does not have sufficient funds to pay "
                 "for the UserOp.",
             )
+
+        used_contracts.append(paymaster_addresss)
+
+    return used_contracts
 
 
 async def is_unique(user_op, session) -> bool:
