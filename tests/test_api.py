@@ -603,3 +603,26 @@ async def test_rejects_user_op_using_SELFDESTRUCT(
         expected_error_message=f"The UserOp is using the forbidden opcode "
         "'SELFDESTRUCT' during the validation",
     )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_using_CREATE2_after_initialization(
+    client, contracts, send_request
+):
+    test_counter = accounts[0].deploy(getattr(brownie, f"TestCounter"))
+    paymaster = accounts[0].deploy(
+        getattr(brownie, f"TestPaymasterCREATE2"),
+        contracts.entry_point.address,
+    )
+    send_request.user_op.paymaster_and_data = (
+        paymaster.address + test_counter.address[2:]
+    )
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
+
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message=f"The UserOp is using the forbidden opcode "
+        "'CREATE2' during the validation",
+    )
