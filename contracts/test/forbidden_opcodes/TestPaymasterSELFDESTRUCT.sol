@@ -19,7 +19,9 @@ contract TestPaymasterSELFDESTRUCT is BasePaymaster {
         override
         returns (bytes memory context, uint256 validationData)
     {
-        address selfDestructor = address(bytes20(userOp.paymasterAndData[20:40]));
+        address selfDestructor = address(
+            bytes20(userOp.paymasterAndData[20:40])
+        );
         selfDestructor.call("");
         return ("", 1);
     }

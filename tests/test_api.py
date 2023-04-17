@@ -548,7 +548,7 @@ async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
-    [
+    (
         # TODO Test 'BASEFEE' and 'PREVRANDAO' opcodes
         "GASPRICE",
         "GASLIMIT",
@@ -561,8 +561,8 @@ async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
         "ORIGIN",
         "CREATE",
         "COINBASE",
-        "GAS"
-    ],
+        "GAS",
+    ),
 )
 async def test_rejects_user_op_using_forbidden_opcodes(
     client, contracts, send_request, opcode
@@ -626,3 +626,31 @@ async def test_rejects_user_op_using_CREATE2_after_initialization(
         expected_error_message=f"The UserOp is using the forbidden opcode "
         "'CREATE2' during the validation",
     )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "opcode",
+    (
+        "CALL",
+        "CALLCODE",
+        "DELEGATECALL",
+        "STATICCALL",
+    ),
+)
+async def test_allow_user_op_using_GAS_before_some_opcodes(
+    client, contracts, send_request, opcode
+):
+    test_counter = accounts[0].deploy(getattr(brownie, "TestCounter"))
+    paymaster = accounts[0].deploy(
+        getattr(brownie, f"TestPaymasterGASBefore{opcode}"),
+        contracts.entry_point.address,
+    )
+    send_request.user_op.paymaster_and_data = (
+        paymaster.address + test_counter.address[2:]
+    )
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
+
+    await client.send_user_op(send_request.json())
