@@ -1,6 +1,7 @@
 import re
 import time
 
+import brownie
 import eth_abi
 import hexbytes
 from brownie import EntryPoint, history, ZERO_ADDRESS
@@ -91,7 +92,7 @@ async def validate_user_op(
         session, used_bytecode_hashes
     )
     if not is_trusted:
-        await validate_after_simulation(initializing)
+        await validate_after_simulation(entry_point, initializing)
 
     return validation_result, is_trusted, expires_at, used_bytecode_hashes
 
@@ -234,31 +235,37 @@ def run_simulation(user_op, entry_point) -> (ValidationResult, int):
     return validation_result, expires_at
 
 
-async def validate_after_simulation(initializing: bool):
-    forbidden_opcode = find_forbidden_opcode(
-        history[-1].trace, initializing=initializing
+async def validate_after_simulation(
+    entry_point: brownie.Contract, initializing: bool
+):
+    validate_called_opcodes(
+        history[-1].trace, entry_point, initializing=initializing
     )
-    if forbidden_opcode:
-        raise HTTPException(
-            status_code=422,
-            detail="The UserOp is using the forbidden opcode "
-            f"'{forbidden_opcode}' during the validation.",
-        )
 
 
-def find_forbidden_opcode(trace: list[dict], initializing: bool) -> str:
+def validate_called_opcodes(
+    trace: list[dict], entry_point: brownie.Contract, initializing: bool
+):
     create2_can_be_called = initializing
     for i in range(len(trace)):
-        if trace[i]["depth"] == 0:
+        if trace[i]["address"] == entry_point.address:
             continue
 
         op = trace[i]["op"]
         if op in FORBIDDEN_OPCODES:
-            return op
+            raise HTTPException(
+                status_code=422,
+                detail=f"The UserOp is using the forbidden opcode '{op}' during"
+                " validation.",
+            )
 
         if op == "CREATE2":
             if not create2_can_be_called:
-                return "CREATE2"
+                raise HTTPException(
+                    status_code=422,
+                    detail="The UserOp is using the 'CREATE2' opcode in an "
+                    "unacceptable context.",
+                )
             create2_can_be_called = False
             continue
 
@@ -268,6 +275,30 @@ def find_forbidden_opcode(trace: list[dict], initializing: bool) -> str:
             "CALLCODE",
             "STATICCALL",
         ):
-            return "GAS"
+            raise HTTPException(
+                status_code=422,
+                detail="The UserOp is using the 'GAS' opcode during validation,"
+                " but not before the external call",
+            )
+
+        if op == "NUMBER":
+            create2_can_be_called = False
+            continue
+
+        if op in ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY") and not trace[i][
+            "fn"
+        ].startswith("<UnknownContract>"):
+            called_address = eth_abi.decode(
+                ["address"], bytes.fromhex(trace[i]["stack"][-1])
+            )[0]
+            checksumed_called_address = brownie.web3.toChecksumAddress(
+                called_address
+            )
+            if not utils.web3.is_contract(checksumed_called_address):
+                raise HTTPException(
+                    status_code=422,
+                    detail="The UserOp during validation accesses the code at "
+                    "an address that does not contain a smart contract.",
+                )
 
     return None
