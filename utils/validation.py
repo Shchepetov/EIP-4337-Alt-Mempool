@@ -3,14 +3,30 @@ import time
 
 import eth_abi
 import hexbytes
-from brownie import ZERO_ADDRESS, EntryPoint
-from brownie.convert import EthAddress
+from brownie import EntryPoint, history, ZERO_ADDRESS
 from fastapi import HTTPException
 
 import app.constants as constants
 import db.service
 import utils.web3
 from app.config import settings
+
+FORBIDDEN_OPCODES = (
+    "GASPRICE",
+    "GASLIMIT",
+    "DIFFICULTY",
+    "PREVRANDAO",
+    "TIMESTAMP",
+    "BASEFEE",
+    "BLOCKHASH",
+    "NUMBER",
+    "SELFBALANCE",
+    "BALANCE",
+    "ORIGIN",
+    "CREATE",
+    "COINBASE",
+    "SELFDESTRUCT",
+)
 
 
 class ValidationResult:
@@ -67,20 +83,22 @@ async def validate_user_op(
 ) -> (ValidationResult, bool, int, hexbytes.HexBytes):
     entry_point = EntryPoint.at(entry_point_address)
 
-    used_bytecode_hashes = await validate_before_simulation(
+    initializing, used_bytecode_hashes = await validate_before_simulation(
         session, user_op, entry_point
     )
     validation_result, expires_at = run_simulation(user_op, entry_point)
     is_trusted = await db.service.all_trusted_bytecodes(
         session, used_bytecode_hashes
     )
+    if not is_trusted:
+        await validate_after_simulation(initializing)
 
     return validation_result, is_trusted, expires_at, used_bytecode_hashes
 
 
 async def validate_before_simulation(
     session, user_op, entry_point
-) -> list[hexbytes.HexBytes]:
+) -> (bool, list[hexbytes.HexBytes]):
     used_contracts = []
     if await db.service.get_user_op_by_hash(session, user_op.hash) is not None:
         raise HTTPException(
@@ -89,8 +107,10 @@ async def validate_before_simulation(
         )
 
     if utils.web3.is_contract(user_op.sender):
+        initializing = False
         used_contracts.append(user_op.sender)
     else:
+        initializing = True
         factory_address = user_op.init_code[:42]
         if not (
             utils.web3.is_address(factory_address)
@@ -178,7 +198,7 @@ async def validate_before_simulation(
             "of which is listed in the blacklist.",
         )
 
-    return used_bytecode_hashes
+    return initializing, used_bytecode_hashes
 
 
 def run_simulation(user_op, entry_point) -> (ValidationResult, int):
@@ -189,10 +209,9 @@ def run_simulation(user_op, entry_point) -> (ValidationResult, int):
         )
     except Exception as e:
         err_msg = e.revert_msg.replace("typed error: ", "")
-        pass
+
     validation_result = ValidationResult(err_msg)
     current_timestamp = int(time.time())
-
     if validation_result.valid_until <= current_timestamp:
         raise HTTPException(
             status_code=422,
@@ -213,3 +232,42 @@ def run_simulation(user_op, entry_point) -> (ValidationResult, int):
     )
 
     return validation_result, expires_at
+
+
+async def validate_after_simulation(initializing: bool):
+    forbidden_opcode = find_forbidden_opcode(
+        history[-1].trace, initializing=initializing
+    )
+    if forbidden_opcode:
+        raise HTTPException(
+            status_code=422,
+            detail="The UserOp is using the forbidden opcode "
+            f"'{forbidden_opcode}' during the validation.",
+        )
+
+
+def find_forbidden_opcode(trace: list[dict], initializing: bool) -> str:
+    create2_can_be_called = initializing
+    for i in range(len(trace)):
+        if trace[i]["depth"] == 0:
+            continue
+
+        op = trace[i]["op"]
+        if op in FORBIDDEN_OPCODES:
+            return op
+
+        if op == "CREATE2":
+            if not create2_can_be_called:
+                return "CREATE2"
+            create2_can_be_called = False
+            continue
+
+        if op == "GAS" and trace[i + 1]["op"] not in (
+            "CALL",
+            "DELEGATECALL",
+            "CALLCODE",
+            "STATICCALL",
+        ):
+            return "GAS"
+
+    return None

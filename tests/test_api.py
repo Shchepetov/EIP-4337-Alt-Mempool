@@ -2,6 +2,7 @@ import copy
 import datetime
 import time
 
+import brownie
 import eth_abi
 import pytest
 from brownie import accounts, TestPaymasterAcceptAll
@@ -541,3 +542,64 @@ async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
     assert user_op["is_trusted"]
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "opcode",
+    [
+        # TODO Test 'BASEFEE' and 'PREVRANDAO' opcodes
+        "GASPRICE",
+        "GASLIMIT",
+        "DIFFICULTY",
+        "TIMESTAMP",
+        "BLOCKHASH",
+        "NUMBER",
+        "SELFBALANCE",
+        "BALANCE",
+        "ORIGIN",
+        "CREATE",
+        "COINBASE",
+        "GAS"
+    ],
+)
+async def test_rejects_user_op_using_forbidden_opcodes(
+    client, contracts, send_request, opcode
+):
+    paymaster = accounts[0].deploy(
+        getattr(brownie, f"TestPaymaster{opcode}"),
+        contracts.entry_point.address,
+    )
+    send_request.user_op.paymaster_and_data = paymaster.address
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
+
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message=f"The UserOp is using the forbidden opcode "
+        f"'{opcode}' during the validation",
+    )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_using_SELFDESTRUCT(
+    client, contracts, send_request
+):
+    self_desctructor = accounts[0].deploy(getattr(brownie, f"SelfDestructor"))
+    paymaster = accounts[0].deploy(
+        getattr(brownie, f"TestPaymasterSELFDESTRUCT"),
+        contracts.entry_point.address,
+    )
+    send_request.user_op.paymaster_and_data = (
+        paymaster.address + self_desctructor.address[2:]
+    )
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
+
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message=f"The UserOp is using the forbidden opcode "
+        "'SELFDESTRUCT' during the validation",
+    )
