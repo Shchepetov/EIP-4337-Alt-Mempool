@@ -238,28 +238,30 @@ def run_simulation(user_op, entry_point) -> (ValidationResult, int):
 async def validate_after_simulation(
     entry_point: brownie.Contract, initializing: bool
 ):
-    validate_called_opcodes(
+    validate_called_instructions(
         history[-1].trace, entry_point, initializing=initializing
     )
 
 
-def validate_called_opcodes(
-    trace: list[dict], entry_point: brownie.Contract, initializing: bool
+def validate_called_instructions(
+    instructions: list[dict], entry_point: brownie.Contract, initializing: bool
 ):
     create2_can_be_called = initializing
-    for i in range(len(trace)):
-        if trace[i]["address"] == entry_point.address:
+    for i in range(len(instructions)):
+        if instructions[i][
+            "address"
+        ] == entry_point.address or not is_caller_known(instructions[i]):
             continue
 
-        op = trace[i]["op"]
-        if op in FORBIDDEN_OPCODES:
+        opcode = instructions[i]["op"]
+        if opcode in FORBIDDEN_OPCODES:
             raise HTTPException(
                 status_code=422,
-                detail=f"The UserOp is using the forbidden opcode '{op}' during"
-                " validation.",
+                detail=f"The UserOp is using the forbidden opcode '{opcode}' "
+                f"during validation.",
             )
 
-        if op == "CREATE2":
+        if opcode == "CREATE2":
             if not create2_can_be_called:
                 raise HTTPException(
                     status_code=422,
@@ -269,7 +271,7 @@ def validate_called_opcodes(
             create2_can_be_called = False
             continue
 
-        if op == "GAS" and trace[i + 1]["op"] not in (
+        if opcode == "GAS" and instructions[i + 1]["op"] not in (
             "CALL",
             "DELEGATECALL",
             "CALLCODE",
@@ -281,24 +283,39 @@ def validate_called_opcodes(
                 " but not before the external call",
             )
 
-        if op == "NUMBER":
+        if opcode == "NUMBER":
             create2_can_be_called = False
             continue
 
-        if op in ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY") and not trace[i][
-            "fn"
-        ].startswith("<UnknownContract>"):
-            called_address = eth_abi.decode(
-                ["address"], bytes.fromhex(trace[i]["stack"][-1])
-            )[0]
-            checksumed_called_address = brownie.web3.toChecksumAddress(
-                called_address
-            )
-            if not utils.web3.is_contract(checksumed_called_address):
+        if opcode in (
+            "EXTCODEHASH",
+            "EXTCODESIZE",
+            "EXTCODECOPY",
+        ):
+            target = instructions[i]["stack"][-1]
+            if not utils.web3.is_contract(target):
                 raise HTTPException(
                     status_code=422,
                     detail="The UserOp during validation accesses the code at "
                     "an address that does not contain a smart contract.",
                 )
 
-    return None
+        if opcode in (
+            "CALL",
+            "CALLCODE",
+            "DELEGATECALL",
+            "STATICCALL",
+        ):
+            target = instructions[i]["stack"][
+                -2 if instructions[i - 1]["op"] == "GAS" else -1
+            ]
+            if not utils.web3.is_contract(target):
+                raise HTTPException(
+                    status_code=422,
+                    detail="The UserOp during validation calling an address "
+                    "that does not contain a smart contract.",
+                )
+
+
+def is_caller_known(instruction: dict) -> bool:
+    return not instruction["fn"].startswith("<UnknownContract>")

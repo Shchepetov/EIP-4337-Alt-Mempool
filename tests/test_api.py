@@ -650,8 +650,8 @@ async def test_rejects_user_op_using_GAS(client, contracts, send_request):
 @pytest.mark.parametrize(
     "opcode",
     (
+        # TODO: "CALLCODE",
         "CALL",
-        "CALLCODE",
         "DELEGATECALL",
         "STATICCALL",
     ),
@@ -666,6 +666,36 @@ async def test_allow_user_op_using_GAS_before_some_opcodes(
     )
     send_request.user_op.paymaster_and_data = (
         paymaster.address + test_counter.address[2:]
+    )
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
+
+    await client.send_user_op(send_request.json())
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "opcode",
+    (
+        "EXTCODEHASH",
+        "EXTCODESIZE",
+        "EXTCODECOPY",
+        "CALL",
+        "CALLCODE",
+        "DELEGATECALL",
+        "STATICCALL",
+    ),
+)
+async def test_allows_user_op_using_opcodes_with_contract_address(
+    client, contracts, send_request, opcode
+):
+    paymaster = accounts[0].deploy(
+        getattr(brownie, f"TestPaymaster{opcode}"),
+        contracts.entry_point.address,
+    )
+    send_request.user_op.paymaster_and_data = (
+        paymaster.address + contracts.entry_point.address[2:]
     )
     send_request.user_op.sign(accounts[0].address, contracts.entry_point)
     contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
@@ -703,9 +733,9 @@ async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
-    ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY"),
+    ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
 )
-async def test_allows_user_op_using_EXTCODE_opcodes_with_contract_address(
+async def test_rejects_user_op_using_CALL_opcodes_with_eoa(
     client, contracts, send_request, opcode
 ):
     paymaster = accounts[0].deploy(
@@ -713,9 +743,13 @@ async def test_allows_user_op_using_EXTCODE_opcodes_with_contract_address(
         contracts.entry_point.address,
     )
     send_request.user_op.paymaster_and_data = (
-        paymaster.address + contracts.entry_point.address[2:]
+        paymaster.address + accounts[0].address[2:]
     )
     send_request.user_op.sign(accounts[0].address, contracts.entry_point)
     contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
 
-    await client.send_user_op(send_request.json())
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The UserOp during validation calling an "
+        "address that does not contain a smart contract",
+    )

@@ -19,8 +19,11 @@ def is_address(s) -> bool:
 
 
 def is_contract(address) -> bool:
+    if len(address) == 64:
+        address = "0x" + address[24:]
+
     if not is_address(address) or address == ZERO_ADDRESS:
         return False
 
-    bytecode = web3.eth.get_code(address)
+    bytecode = web3.eth.get_code(web3.toChecksumAddress(address))
     return bool(len(bytecode))
