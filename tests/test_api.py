@@ -4,7 +4,7 @@ import time
 
 import eth_abi
 import pytest
-from brownie import accounts, TestPaymasterAcceptAll
+from brownie import accounts, SelfDestructor, TestPaymasterAcceptAll
 
 import app.constants as constants
 import db.service
@@ -577,9 +577,10 @@ async def test_rejects_user_op_using_forbidden_opcodes(
 async def test_rejects_user_op_using_SELFDESTRUCT(
     client, send_request_with_paymaster_using_opcode
 ):
+    selfDestructor = accounts[0].deploy(SelfDestructor)
     await client.send_user_op(
         send_request_with_paymaster_using_opcode(
-            "SELFDESTRUCT", "SelfDestructor"
+            "SELFDESTRUCT", selfDestructor
         ).json(),
         expected_error_message=f"The UserOp is using the forbidden opcode "
         f"'SELFDESTRUCT' during validation",
