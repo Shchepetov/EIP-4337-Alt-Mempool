@@ -579,9 +579,7 @@ async def test_rejects_user_op_using_SELFDESTRUCT(
 ):
     selfDestructor = accounts[0].deploy(SelfDestructor)
     await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            "SELFDESTRUCT", selfDestructor
-        ).json(),
+        send_request_with_paymaster_using_opcode("CALL", selfDestructor).json(),
         expected_error_message=f"The UserOp is using the forbidden opcode "
         f"'SELFDESTRUCT' during validation",
     )
@@ -629,7 +627,7 @@ async def test_allow_user_op_using_GAS_before_some_opcodes(
 ):
     await client.send_user_op(
         send_request_with_paymaster_using_opcode(
-            f"GASBefore{opcode}", contracts.counter
+            f"{opcode}", contracts.counter
         ).json()
     )
 
