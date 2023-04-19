@@ -58,6 +58,20 @@ contract TestPaymasterCALL is TestPaymasterCallOpcode {
 }
 
 /**
+ * @dev Test paymaster with _validatePaymasterUserOp using the 'CALLCODE' opcode.
+ */
+contract TestPaymasterCALLCODE is TestPaymasterCallOpcode {
+    constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {}
+
+    function _callOpcode(address context) internal override {
+        uint256 dummy;
+        assembly {
+            dummy := callcode(123, context, 0, 0, 0, 0, 0)
+        }
+    }
+}
+
+/**
  * @dev Test paymaster with _validatePaymasterUserOp using the 'COINBASE' opcode.
  */
 contract TestPaymasterCOINBASE is TestPaymasterCallOpcode {
@@ -99,7 +113,7 @@ contract TestPaymasterDELEGATECALL is TestPaymasterCallOpcode {
     function _callOpcode(address context) internal override {
         uint256 dummy;
         assembly {
-            dummy := delegatecall(context, 0, 0, 0, 0, 0)
+            dummy := delegatecall(123, context, 0, 0, 0, 0)
         }
     }
 }
@@ -177,6 +191,20 @@ contract TestPaymasterGASBeforeCALL is TestPaymasterCallOpcode {
 
     function _callOpcode(address context) internal override {
         context.call("");
+    }
+}
+
+/**
+ * @dev Test paymaster with _validatePaymasterUserOp using the 'GAS' opcode before `CALLCODE` opcode.
+ */
+contract TestPaymasterGASBeforeCALLCODE is TestPaymasterCallOpcode {
+    constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {}
+
+    function _callOpcode(address context) internal override {
+        uint256 dummy;
+        assembly {
+            dummy := callcode(gas(), context, 0, 0, 0, 0, 0)
+        }
     }
 }
 
@@ -277,7 +305,7 @@ contract TestPaymasterSTATICCALL is TestPaymasterCallOpcode {
     function _callOpcode(address context) internal override {
         uint256 dummy;
         assembly {
-            dummy := staticcall(context, 0, 0, 0, 0, 0)
+            dummy := staticcall(123, context, 0, 0, 0, 0)
         }
     }
 }
