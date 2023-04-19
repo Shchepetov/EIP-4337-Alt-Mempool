@@ -8,6 +8,7 @@ from brownie import (
     accounts,
     chain,
     web3,
+    TestAggregatedAccountFactory,
     TestExpirePaymaster,
     TestPaymasterAcceptAll,
     EntryPoint,
@@ -73,6 +74,14 @@ class TestContracts:
         self.simple_account_factory = accounts[0].deploy(
             SimpleAccountFactory, self.entry_point.address
         )
+
+        self.aggregator = self.entry_point
+        self.aggregated_account_factory = accounts[0].deploy(
+            TestAggregatedAccountFactory,
+            self.entry_point.address,
+            self.aggregator.address,
+        )
+
         self.paymaster = accounts[0].deploy(
             TestPaymasterAcceptAll, self.entry_point.address
         )

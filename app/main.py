@@ -80,7 +80,7 @@ async def send_user_operation(
         validation_result,
         is_trusted,
         expires_at,
-        used_bytecode_hashes,
+        helper_contracts_bytecode_hashes,
     ) = await validate_user_op(session, request.user_op, request.entry_point)
 
     await db.service.delete_user_op_by_sender(session, request.user_op.sender)
@@ -96,7 +96,7 @@ async def send_user_operation(
         expires_at=datetime.fromtimestamp(expires_at),
     )
     await db.service.add_user_op_bytecodes(
-        session, user_op, used_bytecode_hashes
+        session, user_op, helper_contracts_bytecode_hashes
     )
 
     await session.commit()

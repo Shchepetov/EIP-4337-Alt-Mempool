@@ -4,7 +4,11 @@ import time
 
 import eth_abi
 import pytest
-from brownie import accounts, SelfDestructor, TestPaymasterAcceptAll
+from brownie import (
+    accounts,
+    SelfDestructor,
+    TestPaymasterAcceptAll,
+)
 
 import app.constants as constants
 import db.service
@@ -492,13 +496,61 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_banned_bytecodes(
+async def test_rejects_user_op_with_banned_factory(
     client, session, contracts, send_request
 ):
     factory_bytecode_hash = utils.web3.get_bytecode_hash(
         contracts.simple_account_factory.address
     )
     await db.service.update_bytecode(session, factory_bytecode_hash, False)
+    await session.commit()
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The UserOp contains calls to smart contracts, "
+        "the bytecode of which is listed in the blacklist",
+    )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_banned_paymaster(
+    client, session, contracts, send_request
+):
+    paymaster_bytecode_hash = utils.web3.get_bytecode_hash(
+        contracts.paymaster.address
+    )
+    await db.service.update_bytecode(session, paymaster_bytecode_hash, False)
+    await session.commit()
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The UserOp contains calls to smart contracts, "
+        "the bytecode of which is listed in the blacklist",
+    )
+
+
+@pytest.mark.eth_sendUserOperation
+@pytest.mark.asyncio
+async def test_rejects_user_op_with_banned_aggregator(
+    client, session, contracts, send_request
+):
+    salt = 1
+    send_request.user_op.sender = (
+        contracts.aggregated_account_factory.getAddress(
+            accounts[0].address, salt
+        )
+    )
+    send_request.user_op.init_code = (
+        contracts.aggregated_account_factory.address
+        + contracts.aggregated_account_factory.createAccount.encode_input(
+            accounts[0].address, salt
+        )[2:]
+    )
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+
+    aggregator_bytecode_hash = utils.web3.get_bytecode_hash(
+        contracts.aggregator.address
+    )
+    await db.service.update_bytecode(session, aggregator_bytecode_hash, False)
     await session.commit()
     await client.send_user_op(
         send_request.json(),

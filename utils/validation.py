@@ -4,7 +4,7 @@ import time
 import brownie
 import eth_abi
 import hexbytes
-from brownie import EntryPoint, history, ZERO_ADDRESS
+from brownie import web3, EntryPoint, history, ZERO_ADDRESS
 from fastapi import HTTPException
 
 import app.constants as constants
@@ -39,7 +39,7 @@ class ValidationResult:
             "(uint256,uint256)",
         ]
         selector = validation_result_string[:10].lower()
-        if selector == "0xf2a8087f":  # ValidationResultWithAggregation
+        if selector == "0xfaecb4e4":  # ValidationResultWithAggregation
             types.append("(address,(uint256,uint256))")
         elif selector != "0xe0cff05f":  # ValidationResult
             raise HTTPException(
@@ -58,6 +58,8 @@ class ValidationResult:
             self.valid_until,
             self.paymaster_context,
         ) = decoded[0]
+
+        self.aggregator = decoded[-1][0] if selector == "0xfaecb4e4" else None
 
 
 def validate_address(v):
@@ -84,23 +86,38 @@ async def validate_user_op(
 ) -> (ValidationResult, bool, int, hexbytes.HexBytes):
     entry_point = EntryPoint.at(entry_point_address)
 
-    initializing, used_bytecode_hashes = await validate_before_simulation(
+    initializing, helper_contracts = await validate_before_simulation(
         session, user_op, entry_point
     )
+
     validation_result, expires_at = run_simulation(user_op, entry_point)
+    if validation_result.aggregator:
+        helper_contracts.append(
+            web3.toChecksumAddress(validation_result.aggregator)
+        )
+
+    helper_contracts_bytecode_hashes = await validate_helper_contracts(
+        session, helper_contracts
+    )
+
     is_trusted = await db.service.all_trusted_bytecodes(
-        session, used_bytecode_hashes
+        session, helper_contracts_bytecode_hashes
     )
     if not is_trusted:
         await validate_after_simulation(entry_point, initializing)
 
-    return validation_result, is_trusted, expires_at, used_bytecode_hashes
+    return (
+        validation_result,
+        is_trusted,
+        expires_at,
+        helper_contracts_bytecode_hashes,
+    )
 
 
 async def validate_before_simulation(
     session, user_op, entry_point
 ) -> (bool, list[hexbytes.HexBytes]):
-    used_contracts = []
+    helper_contracts = []
     if await db.service.get_user_op_by_hash(session, user_op.hash) is not None:
         raise HTTPException(
             status_code=422,
@@ -109,7 +126,7 @@ async def validate_before_simulation(
 
     if utils.web3.is_contract(user_op.sender):
         initializing = False
-        used_contracts.append(user_op.sender)
+        helper_contracts.append(user_op.sender)
     else:
         initializing = True
         factory_address = user_op.init_code[:42]
@@ -122,7 +139,7 @@ async def validate_before_simulation(
                 detail="'sender' and the first 20 bytes of 'init_code' do not "
                 "represent a smart contract address.",
             )
-        used_contracts.append(factory_address)
+        helper_contracts.append(factory_address)
 
     if user_op.call_gas_limit < constants.CALL_GAS:
         raise HTTPException(
@@ -187,19 +204,9 @@ async def validate_before_simulation(
                 "for the UserOp.",
             )
 
-        used_contracts.append(paymaster_addresss)
+        helper_contracts.append(paymaster_addresss)
 
-    used_bytecode_hashes = [
-        utils.web3.get_bytecode_hash(address) for address in used_contracts
-    ]
-    if await db.service.any_banned_bytecodes(session, used_bytecode_hashes):
-        raise HTTPException(
-            status_code=422,
-            detail="The UserOp contains calls to smart contracts, the bytecode "
-            "of which is listed in the blacklist.",
-        )
-
-    return initializing, used_bytecode_hashes
+    return initializing, helper_contracts
 
 
 def run_simulation(user_op, entry_point) -> (ValidationResult, int):
@@ -233,6 +240,22 @@ def run_simulation(user_op, entry_point) -> (ValidationResult, int):
     )
 
     return validation_result, expires_at
+
+
+async def validate_helper_contracts(session, helper_contracts) -> list[str]:
+    helper_contracts_bytecode_hashes = [
+        utils.web3.get_bytecode_hash(address) for address in helper_contracts
+    ]
+    if await db.service.any_banned_bytecodes(
+        session, helper_contracts_bytecode_hashes
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="The UserOp contains calls to smart contracts, the bytecode "
+            "of which is listed in the blacklist.",
+        )
+
+    return helper_contracts_bytecode_hashes
 
 
 async def validate_after_simulation(
