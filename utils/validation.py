@@ -292,7 +292,9 @@ def validate_called_instructions(
             "EXTCODESIZE",
             "EXTCODECOPY",
         ):
-            target = instructions[i]["stack"][-1]
+            target = utils.web3.address_from_memory(
+                instructions[i]["stack"][-1]
+            )
             if not utils.web3.is_contract(target):
                 raise HTTPException(
                     status_code=422,
@@ -306,13 +308,32 @@ def validate_called_instructions(
             "DELEGATECALL",
             "STATICCALL",
         ):
-            target = instructions[i]["stack"][-2]
+            target = utils.web3.address_from_memory(
+                instructions[i]["stack"][-2]
+            )
             if not utils.web3.is_contract(target):
                 raise HTTPException(
                     status_code=422,
                     detail="The UserOp during validation calling an address "
                     "that does not contain a smart contract.",
                 )
+
+            if target == entry_point.address:
+                bytes_offset_pos = -4 if opcode in ("CALL", "CALLCODE") else -3
+                bytes_offset = int(
+                    instructions[i]["stack"][bytes_offset_pos], 16
+                )
+                memory = "".join(instructions[i]["memory"])
+                selector = memory[bytes_offset * 2 : bytes_offset * 2 + 8]
+                if selector not in (
+                    entry_point.depositTo.signature[2:],
+                    "00000000",
+                ):
+                    raise HTTPException(
+                        status_code=422,
+                        detail="The UserOp is calling the EntryPoint during "
+                        "validation, but only 'depositTo' method is allowed.",
+                    )
 
 
 def is_caller_known(instruction: dict) -> bool:

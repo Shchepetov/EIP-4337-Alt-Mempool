@@ -281,8 +281,9 @@ contract TestPaymasterCALLCODE is TestPaymasterCALL_ {
     {
         uint256 dummy;
         assembly {
-            mstore(0x40, payload)
-            dummy := callcode(123, target, 0, 0x40, mload(payload), 0, 0)
+            let size := mload(payload)
+            let ptr := add(payload, 0x20)
+            dummy := callcode(123, target, 0, ptr, size, 0, 0)
         }
     }
 }

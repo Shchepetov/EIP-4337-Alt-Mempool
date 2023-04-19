@@ -179,14 +179,14 @@ def send_request(contracts):
 
 @pytest.fixture(scope="function")
 def send_request_with_paymaster_using_opcode(contracts, send_request):
-    def f(opcode: str, context_contract: brownie.Contract = None):
+    def f(opcode: str, target: brownie.Contract = None, payload=""):
         paymaster = accounts[0].deploy(
             getattr(brownie, f"TestPaymaster{opcode}"),
             contracts.entry_point.address,
         )
         send_request.user_op.paymaster_and_data = (
-            (paymaster.address + context_contract.address[2:])
-            if context_contract
+            (paymaster.address + target.address[2:] + payload)
+            if target
             else paymaster.address
         )
 
