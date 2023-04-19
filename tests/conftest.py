@@ -1,6 +1,7 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
+import brownie
 import pytest
 import pytest_asyncio
 from brownie import (
@@ -11,6 +12,7 @@ from brownie import (
     TestPaymasterAcceptAll,
     EntryPoint,
     SimpleAccountFactory,
+    TestCounter,
     TestToken,
 )
 from httpx import AsyncClient
@@ -78,6 +80,7 @@ class TestContracts:
             TestExpirePaymaster, self.entry_point.address
         )
         self.token = accounts[0].deploy(TestToken)
+        self.counter = accounts[0].deploy(TestCounter)
 
         for address in (
             self.paymaster.address,
@@ -172,3 +175,24 @@ def send_request(contracts):
     user_op.sign(accounts[0].address, contracts.entry_point)
 
     return SendRequest(user_op, contracts.entry_point.address)
+
+
+@pytest.fixture(scope="function")
+def send_request_with_paymaster_using_opcode(contracts, send_request):
+    def f(opcode: str, context_contract: brownie.Contract = None):
+        paymaster = accounts[0].deploy(
+            getattr(brownie, f"TestPaymaster{opcode}"),
+            contracts.entry_point.address,
+        )
+        send_request.user_op.paymaster_and_data = (
+            (paymaster.address + context_contract.address[2:])
+            if context_contract
+            else paymaster.address
+        )
+
+        send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+        contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
+
+        return send_request
+
+    return f

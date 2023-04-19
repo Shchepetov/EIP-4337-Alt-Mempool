@@ -2,7 +2,6 @@ import copy
 import datetime
 import time
 
-import brownie
 import eth_abi
 import pytest
 from brownie import accounts, TestPaymasterAcceptAll
@@ -564,18 +563,10 @@ async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
     ),
 )
 async def test_rejects_user_op_using_forbidden_opcodes(
-    client, contracts, send_request, opcode
+    client, send_request_with_paymaster_using_opcode, opcode
 ):
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymaster{opcode}"),
-        contracts.entry_point.address,
-    )
-    send_request.user_op.paymaster_and_data = paymaster.address
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
     await client.send_user_op(
-        send_request.json(),
+        send_request_with_paymaster_using_opcode(opcode).json(),
         expected_error_message=f"The UserOp is using the forbidden opcode "
         f"'{opcode}' during validation",
     )
@@ -584,21 +575,12 @@ async def test_rejects_user_op_using_forbidden_opcodes(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_using_SELFDESTRUCT(
-    client, contracts, send_request
+    client, send_request_with_paymaster_using_opcode
 ):
-    self_desctructor = accounts[0].deploy(getattr(brownie, f"SelfDestructor"))
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymasterSELFDESTRUCT"),
-        contracts.entry_point.address,
-    )
-    send_request.user_op.paymaster_and_data = (
-        paymaster.address + self_desctructor.address[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
     await client.send_user_op(
-        send_request.json(),
+        send_request_with_paymaster_using_opcode(
+            "SELFDESTRUCT", "SelfDestructor"
+        ).json(),
         expected_error_message=f"The UserOp is using the forbidden opcode "
         f"'SELFDESTRUCT' during validation",
     )
@@ -607,21 +589,12 @@ async def test_rejects_user_op_using_SELFDESTRUCT(
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_using_CREATE2_after_initialization(
-    client, contracts, send_request
+    client, contracts, send_request_with_paymaster_using_opcode
 ):
-    test_counter = accounts[0].deploy(getattr(brownie, f"TestCounter"))
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymasterCREATE2"),
-        contracts.entry_point.address,
-    )
-    send_request.user_op.paymaster_and_data = (
-        paymaster.address + test_counter.address[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
     await client.send_user_op(
-        send_request.json(),
+        send_request_with_paymaster_using_opcode(
+            "CREATE2", contracts.counter
+        ).json(),
         expected_error_message="The UserOp is using the 'CREATE2' opcode in an "
         "unacceptable context.",
     )
@@ -629,17 +602,11 @@ async def test_rejects_user_op_using_CREATE2_after_initialization(
 
 @pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
-async def test_rejects_user_op_using_GAS(client, contracts, send_request):
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymasterGAS"),
-        contracts.entry_point.address,
-    )
-    send_request.user_op.paymaster_and_data = paymaster.address
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
+async def test_rejects_user_op_using_GAS_not_before_external_call(
+    client, send_request_with_paymaster_using_opcode
+):
     await client.send_user_op(
-        send_request.json(),
+        send_request_with_paymaster_using_opcode("GAS").json(),
         expected_error_message="The UserOp is using the 'GAS' opcode during "
         "validation, but not before the external call",
     )
@@ -650,27 +617,20 @@ async def test_rejects_user_op_using_GAS(client, contracts, send_request):
 @pytest.mark.parametrize(
     "opcode",
     (
-        # TODO: "CALLCODE",
         "CALL",
+        "CALLCODE",
         "DELEGATECALL",
         "STATICCALL",
     ),
 )
 async def test_allow_user_op_using_GAS_before_some_opcodes(
-    client, contracts, send_request, opcode
+    client, contracts, send_request_with_paymaster_using_opcode, opcode
 ):
-    test_counter = accounts[0].deploy(getattr(brownie, "TestCounter"))
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymasterGASBefore{opcode}"),
-        contracts.entry_point.address,
+    await client.send_user_op(
+        send_request_with_paymaster_using_opcode(
+            f"GASBefore{opcode}", contracts.counter
+        ).json()
     )
-    send_request.user_op.paymaster_and_data = (
-        paymaster.address + test_counter.address[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
-    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -678,29 +638,21 @@ async def test_allow_user_op_using_GAS_before_some_opcodes(
 @pytest.mark.parametrize(
     "opcode",
     (
-        "EXTCODEHASH",
-        "EXTCODESIZE",
-        "EXTCODECOPY",
         "CALL",
         "CALLCODE",
         "DELEGATECALL",
+        "EXTCODEHASH",
+        "EXTCODESIZE",
+        "EXTCODECOPY",
         "STATICCALL",
     ),
 )
 async def test_allows_user_op_using_opcodes_with_contract_address(
-    client, contracts, send_request, opcode
+    client, send_request_with_paymaster_using_opcode, opcode
 ):
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymaster{opcode}"),
-        contracts.entry_point.address,
+    await client.send_user_op(
+        send_request_with_paymaster_using_opcode(opcode).json()
     )
-    send_request.user_op.paymaster_and_data = (
-        paymaster.address + contracts.entry_point.address[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
-    await client.send_user_op(send_request.json())
 
 
 @pytest.mark.eth_sendUserOperation
@@ -710,20 +662,10 @@ async def test_allows_user_op_using_opcodes_with_contract_address(
     ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY"),
 )
 async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
-    client, contracts, send_request, opcode
+    client, send_request_with_paymaster_using_opcode, opcode
 ):
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymaster{opcode}"),
-        contracts.entry_point.address,
-    )
-    send_request.user_op.paymaster_and_data = (
-        paymaster.address + accounts[0].address[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
     await client.send_user_op(
-        send_request.json(),
+        send_request_with_paymaster_using_opcode(opcode, accounts[0]).json(),
         expected_error_message=f"The UserOp during validation accesses the code"
         " at an address that does not contain a smart contract.",
     )
@@ -736,20 +678,10 @@ async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
     ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
 )
 async def test_rejects_user_op_using_CALL_opcodes_with_eoa(
-    client, contracts, send_request, opcode
+    client, send_request_with_paymaster_using_opcode, opcode
 ):
-    paymaster = accounts[0].deploy(
-        getattr(brownie, f"TestPaymaster{opcode}"),
-        contracts.entry_point.address,
-    )
-    send_request.user_op.paymaster_and_data = (
-        paymaster.address + accounts[0].address[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-    contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
-
     await client.send_user_op(
-        send_request.json(),
+        send_request_with_paymaster_using_opcode(opcode, accounts[0]).json(),
         expected_error_message="The UserOp during validation calling an "
         "address that does not contain a smart contract",
     )
