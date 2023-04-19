@@ -6,7 +6,6 @@ import eth_abi
 import pytest
 from brownie import (
     accounts,
-    SelfDestructor,
     TestPaymasterAcceptAll,
 )
 
@@ -16,13 +15,11 @@ import utils.web3
 from app.config import settings
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_accepts_user_op(client, send_request):
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_integers_in_fields(client, send_request):
     request_json = send_request.json()
@@ -40,7 +37,6 @@ async def test_rejects_user_op_with_integers_in_fields(client, send_request):
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_non_hexadecimal_values_in_fields(
     client, send_request
@@ -77,7 +73,6 @@ async def test_rejects_user_op_with_non_hexadecimal_values_in_fields(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_values_less_than_20_bytes_in_address_fields(
     client, send_request
@@ -89,7 +84,6 @@ async def test_rejects_user_op_with_values_less_than_20_bytes_in_address_fields(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
     client, send_request
@@ -111,7 +105,6 @@ async def test_rejects_user_op_with_values_larger_uint256_in_integer_fields(
         )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_odd_hexadecimal_chars_in_byte_fields(
     client, send_request
@@ -130,7 +123,6 @@ async def test_rejects_user_op_with_odd_hexadecimal_chars_in_byte_fields(
         )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_saves_correct_user_op(client, send_request):
     request_json = send_request.json()
@@ -143,7 +135,6 @@ async def test_saves_correct_user_op(client, send_request):
     assert user_op["entry_point"] == send_request.entry_point
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_same_user_op(client, send_request):
     await client.send_user_op(send_request.json())
@@ -153,7 +144,6 @@ async def test_rejects_same_user_op(client, send_request):
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_same_user_op_with_different_signature(
     client, send_request
@@ -166,7 +156,6 @@ async def test_rejects_same_user_op_with_different_signature(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_replaces_user_op_with_same_sender(client, send_request):
     user_op_1_hash = await client.send_user_op(send_request.json())
@@ -180,7 +169,6 @@ async def test_replaces_user_op_with_same_sender(client, send_request):
     assert user_op["hash"] == user_op_2_hash
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
     client, send_request
@@ -195,7 +183,6 @@ async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     client, send_request
@@ -216,7 +203,6 @@ async def test_rejects_user_op_with_verification_gas_limit_greater_than_limit(
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
     client, send_request
@@ -230,7 +216,6 @@ async def test_rejects_user_op_with_max_fee_per_gas_less_than_limit(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
     client, send_request
@@ -253,7 +238,6 @@ async def test_rejects_user_op_with_max_priority_fee_per_gas_less_than_limit(
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
     client, send_request
@@ -278,7 +262,6 @@ async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
     client, send_request
@@ -292,7 +275,6 @@ async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_paymaster(
     client, contracts, send_request
@@ -309,7 +291,6 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     client, contracts, send_request
@@ -338,7 +319,6 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
     client, send_request
@@ -355,7 +335,6 @@ async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
     await client.send_user_op(send_request.json())
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_failing_simulation(client, send_request):
     send_request.user_op.signature = send_request.user_op.signature[:-2]
@@ -365,7 +344,6 @@ async def test_rejects_user_op_failing_simulation(client, send_request):
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_expired_user_op(client, contracts, send_request):
     now = int(time.time())
@@ -381,7 +359,6 @@ async def test_rejects_expired_user_op(client, contracts, send_request):
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_valid_after_expiry_period(
     client, contracts, send_request
@@ -402,7 +379,6 @@ async def test_rejects_user_op_valid_after_expiry_period(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_saves_validity_period_in_user_op(
     client, contracts, send_request
@@ -431,7 +407,6 @@ async def test_saves_validity_period_in_user_op(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_saves_another_valid_until_in_user_op_if_simulation_returns_uint64_max(
     client, contracts, send_request
@@ -452,7 +427,6 @@ async def test_saves_another_valid_until_in_user_op_if_simulation_returns_uint64
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_saves_expiry_time_equal_valid_until_in_user_op(
     client, contracts, send_request
@@ -474,7 +448,6 @@ async def test_saves_expiry_time_equal_valid_until_in_user_op(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
     client, contracts, send_request
@@ -494,7 +467,6 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
     ) == pytest.approx(now + settings.user_op_lifetime, abs=5)
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_banned_factory(
     client, session, contracts, send_request
@@ -511,7 +483,6 @@ async def test_rejects_user_op_with_banned_factory(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_banned_paymaster(
     client, session, contracts, send_request
@@ -528,7 +499,6 @@ async def test_rejects_user_op_with_banned_paymaster(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_banned_aggregator(
     client, session, contracts, send_request
@@ -559,7 +529,6 @@ async def test_rejects_user_op_with_banned_aggregator(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
     client, session, contracts, send_request
@@ -575,7 +544,6 @@ async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
     assert not user_op["is_trusted"]
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
     client, session, contracts, send_request
@@ -595,7 +563,6 @@ async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
     assert user_op["is_trusted"]
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -624,20 +591,19 @@ async def test_rejects_user_op_using_forbidden_opcodes(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_using_SELFDESTRUCT(
-    client, send_request_with_paymaster_using_opcode
+    client, contracts, send_request_with_paymaster_using_opcode
 ):
-    selfDestructor = accounts[0].deploy(SelfDestructor)
     await client.send_user_op(
-        send_request_with_paymaster_using_opcode("CALL", selfDestructor).json(),
+        send_request_with_paymaster_using_opcode(
+            "CALL", contracts.self_destructor
+        ).json(),
         expected_error_message=f"The UserOp is using the forbidden opcode "
         f"'SELFDESTRUCT' during validation",
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_using_CREATE2_after_initialization(
     client, contracts, send_request_with_paymaster_using_opcode
@@ -651,7 +617,6 @@ async def test_rejects_user_op_using_CREATE2_after_initialization(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 async def test_rejects_user_op_using_GAS_not_before_external_call(
     client, send_request_with_paymaster_using_opcode
@@ -663,7 +628,6 @@ async def test_rejects_user_op_using_GAS_not_before_external_call(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -684,7 +648,6 @@ async def test_allow_user_op_using_GAS_before_some_opcodes(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -708,7 +671,6 @@ async def test_allows_user_op_using_opcodes_with_contract_address(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -726,7 +688,6 @@ async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -744,7 +705,6 @@ async def test_rejects_user_op_using_CALL_opcodes_with_eoa(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -764,7 +724,6 @@ async def test_rejects_user_op_using_CALL_opcodes_with_entry_point(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
@@ -782,7 +741,6 @@ async def test_accepts_user_op_using_CALL_opcodes_with_entry_point_depositFor(
     )
 
 
-@pytest.mark.eth_sendUserOperation
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",

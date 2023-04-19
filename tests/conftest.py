@@ -12,6 +12,7 @@ from brownie import (
     TestExpirePaymaster,
     TestPaymasterAcceptAll,
     EntryPoint,
+    SelfDestructor,
     SimpleAccountFactory,
     TestCounter,
     TestToken,
@@ -70,30 +71,31 @@ class AppClient:
 
 class TestContracts:
     def __init__(self):
+        self.counter = accounts[0].deploy(TestCounter)
         self.entry_point = accounts[0].deploy(EntryPoint)
-        self.simple_account_factory = accounts[0].deploy(
-            SimpleAccountFactory, self.entry_point.address
-        )
-
+        self.self_destructor = accounts[0].deploy(SelfDestructor)
+        self.token = accounts[0].deploy(TestToken)
         self.aggregator = self.entry_point
+
         self.aggregated_account_factory = accounts[0].deploy(
             TestAggregatedAccountFactory,
             self.entry_point.address,
             self.aggregator.address,
         )
-
-        self.paymaster = accounts[0].deploy(
-            TestPaymasterAcceptAll, self.entry_point.address
+        self.simple_account_factory = accounts[0].deploy(
+            SimpleAccountFactory, self.entry_point.address
         )
+
         self.expire_paymaster = accounts[0].deploy(
             TestExpirePaymaster, self.entry_point.address
         )
-        self.token = accounts[0].deploy(TestToken)
-        self.counter = accounts[0].deploy(TestCounter)
+        self.paymaster = accounts[0].deploy(
+            TestPaymasterAcceptAll, self.entry_point.address
+        )
 
         for address in (
-            self.paymaster.address,
             self.expire_paymaster.address,
+            self.paymaster.address,
         ):
             self.entry_point.depositTo(address, {"value": "10 ether"})
 
@@ -168,7 +170,6 @@ async def session(
 @pytest.fixture(scope="function")
 def send_request(contracts):
     salt = 1
-
     user_op = UserOp(**DEFAULTS_FOR_USER_OP)
     user_op.sender = contracts.simple_account_factory.getAddress(
         accounts[0].address, salt
