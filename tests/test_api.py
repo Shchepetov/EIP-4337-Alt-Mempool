@@ -648,10 +648,12 @@ async def test_allow_user_op_using_GAS_before_some_opcodes(
     ),
 )
 async def test_allows_user_op_using_opcodes_with_contract_address(
-    client, send_request_with_paymaster_using_opcode, opcode
+    client, contracts, send_request_with_paymaster_using_opcode, opcode
 ):
     await client.send_user_op(
-        send_request_with_paymaster_using_opcode(opcode).json()
+        send_request_with_paymaster_using_opcode(
+            opcode, contracts.counter
+        ).json()
     )
 
 

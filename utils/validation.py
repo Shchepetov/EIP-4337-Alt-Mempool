@@ -306,9 +306,7 @@ def validate_called_instructions(
             "DELEGATECALL",
             "STATICCALL",
         ):
-            target = instructions[i]["stack"][
-                -2 if instructions[i - 1]["op"] == "GAS" else -1
-            ]
+            target = instructions[i]["stack"][-2]
             if not utils.web3.is_contract(target):
                 raise HTTPException(
                     status_code=422,
