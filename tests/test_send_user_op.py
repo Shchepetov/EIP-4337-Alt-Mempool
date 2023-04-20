@@ -469,7 +469,7 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
 
 
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_banned_factory(
+async def test_rejects_user_op_with_prohibited_factory(
     client, session, contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
@@ -484,7 +484,7 @@ async def test_rejects_user_op_with_banned_factory(
 
 
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_banned_paymaster(
+async def test_rejects_user_op_with_prohibited_paymaster(
     client, session, contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
@@ -499,7 +499,7 @@ async def test_rejects_user_op_with_banned_paymaster(
 
 
 @pytest.mark.asyncio
-async def test_rejects_user_op_with_banned_aggregator(
+async def test_rejects_user_op_with_prohibited_aggregator(
     client, session, contracts, send_request
 ):
     salt = 1

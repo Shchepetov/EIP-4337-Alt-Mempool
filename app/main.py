@@ -132,7 +132,6 @@ async def supported_entry_points(session: AsyncSession = Depends(get_session)):
 
 @app.post("/api/eth_lastUserOperations")
 async def last_user_ops(session: AsyncSession = Depends(get_session)):
-    user_op_schemes = await db.service.get_last_user_ops(
+    return await db.service.get_last_user_ops(
         session, settings.last_user_ops_count
     )
-    return [user_op_schema for user_op_schema in user_op_schemes]

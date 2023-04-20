@@ -42,6 +42,11 @@ class AppClient:
             "eth_getUserOperationByHash", json={"hash": hash_}, **kwargs
         )
 
+    async def last_user_ops(self, **kwargs) -> dict:
+        return await self._make_request(
+            "eth_lastUserOperations", json={}, **kwargs
+        )
+
     async def _make_request(
         self,
         method: str,

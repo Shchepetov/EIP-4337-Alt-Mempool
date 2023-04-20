@@ -257,7 +257,7 @@ async def validate_helper_contracts(session, helper_contracts) -> list[str]:
     helper_contracts_bytecode_hashes = [
         utils.web3.get_bytecode_hash(address) for address in helper_contracts
     ]
-    if await db.service.any_banned_bytecodes(
+    if await db.service.any_forbidden_bytecodes(
         session, helper_contracts_bytecode_hashes
     ):
         raise HTTPException(

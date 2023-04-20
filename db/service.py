@@ -41,8 +41,17 @@ async def delete_user_op_by_sender(
 
 
 async def get_last_user_ops(session: AsyncSession, count: int) -> list[UserOp]:
-    result = await session.execute(select(UserOp).limit(count))
+    result = await session.execute(select_valid_user_ops().limit(count))
     return result.scalars().all()
+
+
+def select_valid_user_ops():
+    now = datetime.datetime.now()
+    return (
+        select(UserOp)
+        .where(UserOp.expires_at > now)
+        .where(UserOp.tx_hash.is_(None))
+    )
 
 
 async def get_user_op_by_hash(session: AsyncSession, hash_: str) -> UserOp:
@@ -61,7 +70,7 @@ async def all_trusted_bytecodes(
     return bool(len(result.all()) == len(bytecode_hashes))
 
 
-async def any_banned_bytecodes(
+async def any_forbidden_bytecodes(
     session: AsyncSession, bytecode_hashes: list[str]
 ) -> bool:
     result = await session.execute(
@@ -76,14 +85,11 @@ async def any_banned_bytecodes(
 async def any_user_op_with_another_sender_using_bytecodes(
     session: AsyncSession, bytecode_hashes: list[str], sender: str
 ) -> bool:
-    now = datetime.datetime.now()
     result = await session.execute(
-        select(UserOp)
+        select_valid_user_ops()
         .where(UserOp.bytecodes.any(Bytecode.hash.in_(bytecode_hashes)))
         .where(UserOp.bytecodes.any(Bytecode.is_trusted.is_(None)))
         .where(UserOp.sender != sender)
-        .where(UserOp.expires_at > now)
-        .where(UserOp.tx_hash.is_(None))
         .limit(1)
     )
     return result.fetchone() is not None
@@ -101,3 +107,8 @@ async def update_bytecode_from_address(
     else:
         bytecode = Bytecode(hash=hash_, is_trusted=is_trusted)
         session.add(bytecode)
+
+    if not is_trusted:
+        await session.execute(
+            delete(UserOp).where(UserOp.bytecodes.any(Bytecode.hash == hash_))
+        )
