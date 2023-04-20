@@ -799,3 +799,28 @@ async def test_accepts_user_op_using_not_trusted_bytecode_expired_in_pool(
         await client.send_user_op(send_request.json())
 
     await client.send_user_op(send_request2.json())
+
+
+@pytest.mark.asyncio
+async def test_adds_rejected_bytecode_to_blacklist(
+    client, send_request_with_paymaster_using_opcode
+):
+    opcode = "BLOCKHASH"
+    await client.send_user_op(
+        send_request_with_paymaster_using_opcode(opcode).json(),
+        expected_error_message=f"The UserOp is using the forbidden opcode "
+        f"'{opcode}' during validation",
+    )
+
+    await client.send_user_op(
+        send_request_with_paymaster_using_opcode(opcode).json(),
+        expected_error_message="The UserOp contains calls to smart contracts, "
+        "the bytecode of which is listed in the blacklist",
+    )
+
+    opcode = "GASLIMIT"
+    await client.send_user_op(
+        send_request_with_paymaster_using_opcode(opcode).json(),
+        expected_error_message=f"The UserOp is using the forbidden opcode "
+        f"'{opcode}' during validation",
+    )

@@ -285,36 +285,48 @@ async def validate_after_simulation(
             " that uses the same helper contracts.",
         )
 
-    validate_called_instructions(
+    (error_msg, helper_contract) = validate_called_instructions(
         history[-1].trace, entry_point, initializing=initializing
     )
+    if error_msg:
+        await db.service.update_bytecode(
+            session, utils.web3.get_bytecode_hash(helper_contract), False
+        )
+        await session.commit()
+
+        raise HTTPException(status_code=422, detail=error_msg)
 
 
 def validate_called_instructions(
     instructions: list[dict], entry_point: brownie.Contract, initializing: bool
-):
+) -> (str, str):
     create2_can_be_called = initializing
+    helper_contract = ""
     for i in range(len(instructions)):
         if instructions[i][
             "address"
         ] == entry_point.address or not is_caller_known(instructions[i]):
             continue
 
+        if instructions[i]["depth"] == 1:
+            helper_contract = instructions[i]["address"]
+
         opcode = instructions[i]["op"]
         if opcode in FORBIDDEN_OPCODES:
-            raise HTTPException(
-                status_code=422,
-                detail=f"The UserOp is using the forbidden opcode '{opcode}' "
-                f"during validation.",
+            return (
+                f"The UserOp is using the forbidden opcode '{opcode}' during "
+                f"validation.",
+                helper_contract,
             )
 
         if opcode == "CREATE2":
             if not create2_can_be_called:
-                raise HTTPException(
-                    status_code=422,
-                    detail="The UserOp is using the 'CREATE2' opcode in an "
+                return (
+                    "The UserOp is using the 'CREATE2' opcode in an "
                     "unacceptable context.",
+                    helper_contract,
                 )
+
             create2_can_be_called = False
             continue
 
@@ -324,10 +336,10 @@ def validate_called_instructions(
             "CALLCODE",
             "STATICCALL",
         ):
-            raise HTTPException(
-                status_code=422,
-                detail="The UserOp is using the 'GAS' opcode during validation,"
-                " but not before the external call",
+            return (
+                "The UserOp is using the 'GAS' opcode during validation, but "
+                "not before the external call",
+                helper_contract,
             )
 
         if opcode == "NUMBER":
@@ -343,10 +355,10 @@ def validate_called_instructions(
                 instructions[i]["stack"][-1]
             )
             if not utils.web3.is_contract(target):
-                raise HTTPException(
-                    status_code=422,
-                    detail="The UserOp during validation accesses the code at "
-                    "an address that does not contain a smart contract.",
+                return (
+                    "The UserOp during validation accesses the code at an "
+                    "address that does not contain a smart contract.",
+                    helper_contract,
                 )
 
         if opcode in (
@@ -359,10 +371,10 @@ def validate_called_instructions(
                 instructions[i]["stack"][-2]
             )
             if not utils.web3.is_contract(target):
-                raise HTTPException(
-                    status_code=422,
-                    detail="The UserOp during validation calling an address "
-                    "that does not contain a smart contract.",
+                return (
+                    "The UserOp during validation calling an address that does "
+                    "not contain a smart contract.",
+                    helper_contract,
                 )
 
             if target == entry_point.address:
@@ -376,10 +388,10 @@ def validate_called_instructions(
                     entry_point.depositTo.signature[2:],
                     "00000000",
                 ):
-                    raise HTTPException(
-                        status_code=422,
-                        detail="The UserOp is calling the EntryPoint during "
+                    return (
+                        "The UserOp is calling the EntryPoint during "
                         "validation, but only 'depositTo' method is allowed.",
+                        helper_contract,
                     )
 
 
