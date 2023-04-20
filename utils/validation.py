@@ -289,8 +289,8 @@ async def validate_after_simulation(
         history[-1].trace, entry_point, initializing=initializing
     )
     if error_msg:
-        await db.service.update_bytecode(
-            session, utils.web3.get_bytecode_hash(helper_contract), False
+        await db.service.update_bytecode_from_address(
+            session, helper_contract, is_trusted=False
         )
         await session.commit()
 

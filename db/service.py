@@ -3,6 +3,7 @@ import datetime
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import utils.web3
 from db.models import Bytecode, UserOp
 
 
@@ -88,7 +89,10 @@ async def any_user_op_with_another_sender_using_bytecodes(
     return result.fetchone() is not None
 
 
-async def update_bytecode(session: AsyncSession, hash_: str, is_trusted: bool):
+async def update_bytecode_from_address(
+    session: AsyncSession, address: str, is_trusted: bool
+):
+    hash_ = utils.web3.get_bytecode_hash(address)
     bytecode = (
         await session.execute(select(Bytecode).where(Bytecode.hash == hash_))
     ).scalar()
