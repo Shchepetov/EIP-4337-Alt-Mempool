@@ -169,7 +169,15 @@ async def session(
 
 @pytest.fixture(scope="function")
 def send_request(contracts):
-    salt = 1
+    return get_send_request(contracts, 1)
+
+
+@pytest.fixture(scope="function")
+def send_request2(contracts):
+    return get_send_request(contracts, 2)
+
+
+def get_send_request(contracts, salt):
     user_op = UserOp(**DEFAULTS_FOR_USER_OP)
     user_op.sender = contracts.simple_account_factory.getAddress(
         accounts[0].address, salt

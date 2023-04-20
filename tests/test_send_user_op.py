@@ -1,6 +1,7 @@
 import copy
 import datetime
 import time
+from unittest.mock import patch
 
 import eth_abi
 import pytest
@@ -755,3 +756,46 @@ async def test_accepts_user_op_using_CALL_opcodes_with_entry_point_fallback(
             target=contracts.entry_point,
         ).json(),
     )
+
+
+@pytest.mark.asyncio
+async def test_rejects_user_op_using_not_trusted_bytecode_already_in_pool(
+    client, send_request, send_request2
+):
+    await client.send_user_op(send_request.json())
+    await client.send_user_op(
+        send_request2.json(),
+        expected_error_message="The UserOp is not trusted and the pool already"
+        " has a UserOp that uses the same helper contracts",
+    )
+
+
+@pytest.mark.asyncio
+async def test_accepts_user_op_using_trusted_bytecode_already_in_pool(
+    client, session, contracts, send_request, send_request2
+):
+    await client.send_user_op(send_request.json())
+
+    factory_bytecode_hash = utils.web3.get_bytecode_hash(
+        contracts.simple_account_factory.address
+    )
+    await db.service.update_bytecode(session, factory_bytecode_hash, True)
+    paymaster_bytecode_hash = utils.web3.get_bytecode_hash(
+        contracts.paymaster.address
+    )
+    await db.service.update_bytecode(session, paymaster_bytecode_hash, True)
+    await session.commit()
+
+    await client.send_user_op(send_request2.json())
+
+
+@pytest.mark.asyncio
+async def test_accepts_user_op_using_not_trusted_bytecode_expired_in_pool(
+    client, send_request, send_request2
+):
+    with patch(
+        "time.time", return_value=int(time.time()) - settings.user_op_lifetime
+    ):
+        await client.send_user_op(send_request.json())
+
+    await client.send_user_op(send_request2.json())

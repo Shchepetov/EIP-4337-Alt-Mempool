@@ -109,7 +109,13 @@ async def validate_user_op(
         session, helper_contracts_bytecode_hashes
     )
     if not is_trusted:
-        await validate_after_simulation(entry_point, initializing)
+        await validate_after_simulation(
+            session,
+            user_op,
+            helper_contracts_bytecode_hashes,
+            entry_point,
+            initializing,
+        )
 
     return (
         validation_result,
@@ -264,8 +270,21 @@ async def validate_helper_contracts(session, helper_contracts) -> list[str]:
 
 
 async def validate_after_simulation(
-    entry_point: brownie.Contract, initializing: bool
+    session,
+    user_op,
+    helper_contracts_bytecode_hashes,
+    entry_point: brownie.Contract,
+    initializing: bool,
 ):
+    if await db.service.any_user_op_with_another_sender_using_bytecodes(
+        session, helper_contracts_bytecode_hashes, sender=user_op.sender
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="The UserOp is not trusted and the pool already has a UserOp"
+            " that uses the same helper contracts.",
+        )
+
     validate_called_instructions(
         history[-1].trace, entry_point, initializing=initializing
     )

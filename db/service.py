@@ -1,3 +1,5 @@
+import datetime
+
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -65,8 +67,25 @@ async def any_banned_bytecodes(
         select(Bytecode)
         .where(Bytecode.hash.in_(bytecode_hashes))
         .where(Bytecode.is_trusted == False)
+        .limit(1)
     )
-    return bool(len(result.all()))
+    return result.fetchone() is not None
+
+
+async def any_user_op_with_another_sender_using_bytecodes(
+    session: AsyncSession, bytecode_hashes: list[str], sender: str
+) -> bool:
+    now = datetime.datetime.now()
+    result = await session.execute(
+        select(UserOp)
+        .where(UserOp.bytecodes.any(Bytecode.hash.in_(bytecode_hashes)))
+        .where(UserOp.bytecodes.any(Bytecode.is_trusted.is_(None)))
+        .where(UserOp.sender != sender)
+        .where(UserOp.expires_at > now)
+        .where(UserOp.tx_hash.is_(None))
+        .limit(1)
+    )
+    return result.fetchone() is not None
 
 
 async def update_bytecode(session: AsyncSession, hash_: str, is_trusted: bool):

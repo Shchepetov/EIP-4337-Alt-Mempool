@@ -1,10 +1,10 @@
 from sqlalchemy import Boolean
 from sqlalchemy import Column
+from sqlalchemy import DateTime
 from sqlalchemy import ForeignKey
 from sqlalchemy import Integer
 from sqlalchemy import LargeBinary
 from sqlalchemy import String
-from sqlalchemy import TIMESTAMP
 from sqlalchemy import Table
 from sqlalchemy import TypeDecorator
 from sqlalchemy.orm import Relationship
@@ -56,9 +56,9 @@ class UserOp(Base):
     paymaster_and_data = Column(String)
     entry_point = Column(String(length=42))
     signature = Column(String)
-    valid_after = Column(TIMESTAMP, index=True)
-    valid_until = Column(TIMESTAMP)
-    expires_at = Column(TIMESTAMP, index=True)
+    valid_after = Column(DateTime, index=True)
+    valid_until = Column(DateTime)
+    expires_at = Column(DateTime, index=True, nullable=False)
     is_trusted = Column(Boolean, index=True, nullable=False)
     tx_hash = Column(String(length=66))
     bytecodes = Relationship(
@@ -95,7 +95,7 @@ class User(Base):
 
     id = Column(Integer, autoincrement=True, primary_key=True)
     token_hash = Column(String(length=66), index=True)
-    token_expires_at = Column(TIMESTAMP, index=True)
+    token_expires_at = Column(DateTime, index=True)
     requests_last_minute_count = Column(Integer)
     requests_last_day_count = Column(Integer)
-    counter_updated_at = Column(TIMESTAMP)
+    counter_updated_at = Column(DateTime)
