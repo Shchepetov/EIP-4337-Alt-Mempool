@@ -38,10 +38,10 @@ class ValidationResult:
             "(uint256,uint256)",
             "(uint256,uint256)",
         ]
-        selector = validation_result_string[:10].lower()
-        if selector == "0xfaecb4e4":  # ValidationResultWithAggregation
+        signature = validation_result_string[2:10].lower()
+        if signature == constants.VALIDATION_RESULT_WITH_AGGREGATION_SIGNATURE:
             types.append("(address,(uint256,uint256))")
-        elif selector != "0xe0cff05f":  # ValidationResult
+        elif signature != constants.VALIDATION_RESULT_SIGNATURE:
             raise HTTPException(
                 status_code=422,
                 detail=f"The simulation of the UserOp has failed with an "
@@ -59,7 +59,12 @@ class ValidationResult:
             self.paymaster_context,
         ) = decoded[0]
 
-        self.aggregator = decoded[-1][0] if selector == "0xfaecb4e4" else None
+        self.aggregator = (
+            decoded[-1][0]
+            if signature
+            == constants.VALIDATION_RESULT_WITH_AGGREGATION_SIGNATURE
+            else None
+        )
 
 
 def validate_address(v):
