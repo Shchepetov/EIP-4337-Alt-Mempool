@@ -37,12 +37,14 @@ async def add_user_op_bytecodes(
 async def delete_user_op_by_sender(
     session: AsyncSession, sender: str
 ) -> UserOp:
-    await session.execute(delete(UserOp).where(UserOp.sender == sender))
+    await session.execute(
+        where_valid(delete(UserOp).where(UserOp.sender == sender))
+    )
 
 
 async def get_last_user_ops(session: AsyncSession, count: int) -> list[UserOp]:
     last_user_ops = []
-    result = (await session.execute(select_valid_user_ops())).scalars()
+    result = (await session.execute(where_valid(select(UserOp)))).scalars()
 
     for user_op in result:
         processed = await refresh_user_op_receipt(user_op)
@@ -55,12 +57,10 @@ async def get_last_user_ops(session: AsyncSession, count: int) -> list[UserOp]:
     return last_user_ops
 
 
-def select_valid_user_ops():
+def where_valid(expression):
     now = datetime.datetime.now()
-    return (
-        select(UserOp)
-        .where(UserOp.expires_at > now)
-        .where(UserOp.tx_hash.is_(None))
+    return expression.where(UserOp.expires_at > now).where(
+        UserOp.tx_hash.is_(None)
     )
 
 
@@ -101,11 +101,12 @@ async def any_user_op_with_another_sender_using_bytecodes(
     session: AsyncSession, bytecode_hashes: list[str], sender: str
 ) -> bool:
     result = await session.execute(
-        select_valid_user_ops()
-        .where(UserOp.bytecodes.any(Bytecode.hash.in_(bytecode_hashes)))
-        .where(UserOp.bytecodes.any(Bytecode.is_trusted.is_(None)))
-        .where(UserOp.sender != sender)
-        .limit(1)
+        where_valid(
+            select(UserOp)
+            .where(UserOp.bytecodes.any(Bytecode.hash.in_(bytecode_hashes)))
+            .where(UserOp.bytecodes.any(Bytecode.is_trusted.is_(None)))
+            .where(UserOp.sender != sender)
+        ).limit(1)
     )
     return result.fetchone() is not None
 
@@ -125,7 +126,9 @@ async def update_bytecode_from_address(
 
     if not is_trusted:
         await session.execute(
-            delete(UserOp).where(UserOp.bytecodes.any(Bytecode.hash == hash_))
+            delete(UserOp)
+            .where(UserOp.bytecodes.any(Bytecode.hash == hash_))
+            .where(UserOp.tx_hash == None)
         )
 
 
