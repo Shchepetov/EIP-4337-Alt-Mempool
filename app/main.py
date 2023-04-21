@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from brownie import EntryPoint
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -74,14 +75,14 @@ app = FastAPI()
 async def send_user_operation(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
-    request.user_op.fill_hash()
-
+    entry_point = EntryPoint.at(request.entry_point)
+    request.user_op.fill_hash(entry_point)
     (
         validation_result,
         is_trusted,
         expires_at,
         helper_contracts_bytecode_hashes,
-    ) = await validate_user_op(session, request.user_op, request.entry_point)
+    ) = await validate_user_op(session, request.user_op, entry_point)
 
     await db.service.delete_user_op_by_sender(session, request.user_op.sender)
     user_op = await db.service.add_user_op(

@@ -8,10 +8,10 @@ DEFAULTS_FOR_USER_OP = {
     "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
     "nonce": 1,
     "init_code": "0x",
-    "call_data": "0x",
-    "call_gas_limit": 200000000,
+    "call_data": "0x12345678",
+    "call_gas_limit": 5000000,
     "verification_gas_limit": settings.max_verification_gas_limit,
-    "pre_verification_gas": 21000,
+    "pre_verification_gas": 2000000,
     "max_fee_per_gas": settings.min_max_fee_per_gas,
     "max_priority_fee_per_gas": settings.min_max_priority_fee_per_gas,
     "paymaster_and_data": "0x",
@@ -50,8 +50,8 @@ class UserOp(BaseModel):
             + self.call_gas_limit
         )
 
-    def fill_hash(self) -> None:
-        self.hash = web3.keccak(self.encode(with_signature=False)).hex()
+    def fill_hash(self, entry_point) -> None:
+        self.hash = "0x" + entry_point.getUserOpHash(self.values()).hex()
 
     def encode(self, with_signature=True) -> bytes:
         types = [

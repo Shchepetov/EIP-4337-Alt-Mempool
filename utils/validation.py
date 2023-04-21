@@ -4,7 +4,7 @@ import time
 import brownie
 import eth_abi
 import hexbytes
-from brownie import web3, EntryPoint, history, ZERO_ADDRESS
+from brownie import web3, history, ZERO_ADDRESS
 from fastapi import HTTPException
 
 import app.constants as constants
@@ -87,10 +87,8 @@ def validate_hex(v):
 
 
 async def validate_user_op(
-    session, user_op, entry_point_address
+    session, user_op, entry_point
 ) -> (ValidationResult, bool, int, hexbytes.HexBytes):
-    entry_point = EntryPoint.at(entry_point_address)
-
     initializing, helper_contracts = await validate_before_simulation(
         session, user_op, entry_point
     )
@@ -285,7 +283,7 @@ async def validate_after_simulation(
             " that uses the same helper contracts.",
         )
 
-    (error_msg, helper_contract) = validate_called_instructions(
+    (helper_contract, error_msg) = validate_called_instructions(
         history[-1].trace, entry_point, initializing=initializing
     )
     if error_msg:
@@ -314,17 +312,17 @@ def validate_called_instructions(
         opcode = instructions[i]["op"]
         if opcode in FORBIDDEN_OPCODES:
             return (
+                helper_contract,
                 f"The UserOp is using the forbidden opcode '{opcode}' during "
                 f"validation.",
-                helper_contract,
             )
 
         if opcode == "CREATE2":
             if not create2_can_be_called:
                 return (
+                    helper_contract,
                     "The UserOp is using the 'CREATE2' opcode in an "
                     "unacceptable context.",
-                    helper_contract,
                 )
 
             create2_can_be_called = False
@@ -337,9 +335,9 @@ def validate_called_instructions(
             "STATICCALL",
         ):
             return (
+                helper_contract,
                 "The UserOp is using the 'GAS' opcode during validation, but "
                 "not before the external call",
-                helper_contract,
             )
 
         if opcode == "NUMBER":
@@ -356,9 +354,9 @@ def validate_called_instructions(
             )
             if not utils.web3.is_contract(target):
                 return (
+                    helper_contract,
                     "The UserOp during validation accesses the code at an "
                     "address that does not contain a smart contract.",
-                    helper_contract,
                 )
 
         if opcode in (
@@ -372,9 +370,9 @@ def validate_called_instructions(
             )
             if not utils.web3.is_contract(target):
                 return (
+                    helper_contract,
                     "The UserOp during validation calling an address that does "
                     "not contain a smart contract.",
-                    helper_contract,
                 )
 
             if target == entry_point.address:
@@ -389,9 +387,9 @@ def validate_called_instructions(
                     "00000000",
                 ):
                     return (
+                        helper_contract,
                         "The UserOp is calling the EntryPoint during "
                         "validation, but only 'depositTo' method is allowed.",
-                        helper_contract,
                     )
     return None, None
 

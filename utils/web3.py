@@ -1,6 +1,10 @@
 import re
 
-from brownie import web3, ZERO_ADDRESS
+import brownie
+from brownie import web3, EntryPoint, ZERO_ADDRESS
+from web3 import Web3
+
+last_seen_block = 0
 
 
 def get_base_fee():
@@ -28,3 +32,37 @@ def is_contract(address) -> bool:
 
 def address_from_memory(address: str) -> str:
     return web3.toChecksumAddress("0x" + address[24:])
+
+
+def get_execution_tx_hash(user_op_hash: str, entry_point_address: str) -> (str):
+    global last_seen_block
+
+    entry_point = EntryPoint.at(entry_point_address)
+    w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
+    contract = w3.eth.contract(address=entry_point_address, abi=entry_point.abi)
+    failed_user_op_execution_filter = (
+        contract.events.UserOperationRevertReason.createFilter(
+            fromBlock=last_seen_block,
+            argument_filters={"userOpHash": user_op_hash},
+        )
+    )
+    succeed_user_op_execution_filter = (
+        contract.events.UserOperationEvent.createFilter(
+            fromBlock=last_seen_block,
+            argument_filters={"userOpHash": user_op_hash},
+        )
+    )
+
+    last_seen_block = brownie.chain.height
+
+    failed_user_op_executions = (
+        failed_user_op_execution_filter.get_all_entries()
+    )
+    if len(failed_user_op_executions):
+        return failed_user_op_executions[0].transactionHash
+
+    succeed_user_op_executions = (
+        succeed_user_op_execution_filter.get_all_entries()
+    )
+    if len(succeed_user_op_executions):
+        return succeed_user_op_executions[0].transactionHash

@@ -9,7 +9,7 @@ import db.service
 from app.config import settings
 
 
-@pytest_asyncio.fixture(scope="function", autouse=True)
+@pytest_asyncio.fixture(scope="function")
 async def trust_contracts(session, contracts):
     await db.service.update_bytecode_from_address(
         session, contracts.simple_account_factory.address, True
@@ -23,7 +23,9 @@ async def trust_contracts(session, contracts):
 
 
 @pytest.mark.asyncio
-async def test_returns_last_user_ops(client, send_request, send_request2):
+async def test_returns_last_user_ops(
+    client, send_request, send_request2, trust_contracts
+):
     user_ops = await client.last_user_ops()
     assert len(user_ops) == 0
 
@@ -38,7 +40,7 @@ async def test_returns_last_user_ops(client, send_request, send_request2):
 
 @pytest.mark.asyncio
 async def test_not_returns_expired_user_ops(
-    client, send_request, send_request2
+    client, send_request, send_request2, trust_contracts
 ):
     with patch(
         "time.time", return_value=int(time.time()) - settings.user_op_lifetime
@@ -53,7 +55,7 @@ async def test_not_returns_expired_user_ops(
 
 @pytest.mark.asyncio
 async def test_not_returns_user_ops_using_prohibited_bytecodes(
-    client, session, contracts, send_request, send_request2
+    client, session, contracts, send_request, send_request2, trust_contracts
 ):
     user_op_hash = await client.send_user_op(send_request.json())
 
@@ -71,3 +73,16 @@ async def test_not_returns_user_ops_using_prohibited_bytecodes(
     user_ops = await client.last_user_ops()
     assert len(user_ops) == 1
     assert user_ops[0]["hash"] == user_op_hash
+
+
+@pytest.mark.asyncio
+async def test_not_returns_executed_user_ops(
+    client, contracts, send_request, send_request2
+):
+    await client.send_user_op(send_request.json())
+    contracts.entry_point.handleOps(
+        [send_request.user_op.values()], accounts[0].address
+    )
+
+    user_ops = await client.last_user_ops()
+    assert len(user_ops) == 0

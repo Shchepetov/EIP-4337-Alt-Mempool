@@ -267,8 +267,13 @@ async def test_rejects_user_op_that_cant_be_included_with_current_basefee(
 async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
     client, send_request
 ):
-    incorrect_pre_verification_gas = send_request.user_op.get_calldata_gas() - 1
-    send_request.user_op.pre_verification_gas = incorrect_pre_verification_gas
+    while (
+        send_request.user_op.pre_verification_gas
+        != send_request.user_op.get_calldata_gas() - 1
+    ):
+        send_request.user_op.pre_verification_gas = (
+            send_request.user_op.get_calldata_gas() - 1
+        )
     await client.send_user_op(
         send_request.json(),
         expected_error_message="'pre_verification_gas' value is insufficient "

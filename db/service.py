@@ -41,8 +41,18 @@ async def delete_user_op_by_sender(
 
 
 async def get_last_user_ops(session: AsyncSession, count: int) -> list[UserOp]:
-    result = await session.execute(select_valid_user_ops().limit(count))
-    return result.scalars().all()
+    last_user_ops = []
+    result = (await session.execute(select_valid_user_ops())).scalars()
+
+    for user_op in result:
+        processed = await refresh_user_op_status(user_op)
+        if not processed:
+            last_user_ops.append(user_op)
+            count -= 1
+        if count == 0:
+            break
+
+    return last_user_ops
 
 
 def select_valid_user_ops():
@@ -112,3 +122,14 @@ async def update_bytecode_from_address(
         await session.execute(
             delete(UserOp).where(UserOp.bytecodes.any(Bytecode.hash == hash_))
         )
+
+
+async def refresh_user_op_status(user_op: UserOp) -> bool:
+    tx_hash = utils.web3.get_execution_tx_hash(
+        user_op.hash, user_op.entry_point
+    )
+    if tx_hash:
+        user_op.tx_hash = tx_hash.hex()
+        return True
+
+    return False
