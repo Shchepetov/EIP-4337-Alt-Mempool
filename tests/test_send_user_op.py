@@ -620,6 +620,32 @@ async def test_rejects_user_op_using_CREATE2_after_initialization(
 
 
 @pytest.mark.asyncio
+async def test_rejects_user_op_using_CREATE2_without_initialization(
+    client, contracts, send_request, send_request_with_paymaster_using_opcode
+):
+    contracts.entry_point.handleOps(
+        [send_request.user_op.values()], accounts[0].address
+    )
+    send_request_with_paymaster_using_CREATE2 = (
+        send_request_with_paymaster_using_opcode("CREATE2", contracts.counter)
+    )
+    send_request.user_op.init_code = "0x"
+    send_request.paymaster_and_data = (
+        send_request_with_paymaster_using_CREATE2.user_op.paymaster_and_data
+    )
+    send_request.user_op.call_data = (
+        contracts.counter.address + contracts.counter.count.encode_input()[2:]
+    )
+    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The UserOp is using the 'CREATE2' opcode in an "
+        "unacceptable context.",
+    )
+
+
+@pytest.mark.asyncio
 async def test_rejects_user_op_using_GAS_not_before_external_call(
     client, send_request_with_paymaster_using_opcode
 ):
