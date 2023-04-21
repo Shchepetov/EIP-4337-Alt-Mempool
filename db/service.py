@@ -45,7 +45,7 @@ async def get_last_user_ops(session: AsyncSession, count: int) -> list[UserOp]:
     result = (await session.execute(select_valid_user_ops())).scalars()
 
     for user_op in result:
-        processed = await refresh_user_op_status(user_op)
+        processed = await refresh_user_op_receipt(user_op)
         if not processed:
             last_user_ops.append(user_op)
             count -= 1
@@ -67,6 +67,11 @@ def select_valid_user_ops():
 async def get_user_op_by_hash(session: AsyncSession, hash_: str) -> UserOp:
     result = await session.execute(select(UserOp).where(UserOp.hash == hash_))
     return result.scalar()
+
+
+async def get_user_op_receipt(user_op: UserOp) -> (str, bool):
+    await refresh_user_op_receipt(user_op)
+    return user_op.tx_hash, user_op.accepted
 
 
 async def all_trusted_bytecodes(
@@ -124,11 +129,15 @@ async def update_bytecode_from_address(
         )
 
 
-async def refresh_user_op_status(user_op: UserOp) -> bool:
-    tx_hash = utils.web3.get_execution_tx_hash(
+async def refresh_user_op_receipt(user_op: UserOp) -> bool:
+    if user_op.tx_hash:
+        return True
+
+    tx_hash, accepted = utils.web3.get_user_op_receipt(
         user_op.hash, user_op.entry_point
     )
     if tx_hash:
+        user_op.accepted = accepted
         user_op.tx_hash = tx_hash.hex()
         return True
 

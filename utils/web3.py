@@ -34,7 +34,9 @@ def address_from_memory(address: str) -> str:
     return web3.toChecksumAddress("0x" + address[24:])
 
 
-def get_execution_tx_hash(user_op_hash: str, entry_point_address: str) -> (str):
+def get_user_op_receipt(
+    user_op_hash: str, entry_point_address: str
+) -> (bool, str):
     global last_seen_block
 
     entry_point = EntryPoint.at(entry_point_address)
@@ -59,10 +61,12 @@ def get_execution_tx_hash(user_op_hash: str, entry_point_address: str) -> (str):
         failed_user_op_execution_filter.get_all_entries()
     )
     if len(failed_user_op_executions):
-        return failed_user_op_executions[0].transactionHash
+        return failed_user_op_executions[0].transactionHash, False
 
     succeed_user_op_executions = (
         succeed_user_op_execution_filter.get_all_entries()
     )
     if len(succeed_user_op_executions):
-        return succeed_user_op_executions[0].transactionHash
+        return succeed_user_op_executions[0].transactionHash, True
+
+    return None, None

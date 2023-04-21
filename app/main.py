@@ -64,8 +64,21 @@ class SendRequest(BaseModel):
 
 
 class UserOpHash(BaseModel):
-    _validate_hash = validator("hash", allow_reuse=True)(validate_hex)
+    @validator("hash")
+    def bytes32_hash(cls, v):
+        validate_hex(v)
+        if len(v) != 66:
+            raise HTTPException(
+                status_code=422, detail="Not a 32-bytes hex value."
+            )
+        return v
+
     hash: str
+
+
+class UserOpReceipt(BaseModel):
+    accepted: bool
+    tx_hash: str
 
 
 app = FastAPI()
@@ -115,15 +128,27 @@ async def estimate_user_op(
 async def get_user_op_by_hash(
     request: UserOpHash, session: AsyncSession = Depends(get_session)
 ):
-    user_op_schema = await db.service.get_user_op_by_hash(session, request.hash)
-    return user_op_schema
+    user_op = await db.service.get_user_op_by_hash(session, request.hash)
+    if not user_op:
+        raise HTTPException(
+            status_code=422, detail="The UserOp does not exist."
+        )
+    return user_op
 
 
 @app.post("/api/eth_getUserOperationReceipt")
 async def get_user_op_receipt(
     request: UserOpHash, session: AsyncSession = Depends(get_session)
 ):
-    pass
+    user_op = await db.service.get_user_op_by_hash(session, request.hash)
+    if not user_op:
+        raise HTTPException(
+            status_code=422, detail="The UserOp does not exist."
+        )
+
+    tx_hash, accepted = await db.service.get_user_op_receipt(user_op)
+    if tx_hash:
+        return UserOpReceipt(tx_hash=tx_hash, accepted=accepted)
 
 
 @app.post("/api/eth_supportedEntryPoints")

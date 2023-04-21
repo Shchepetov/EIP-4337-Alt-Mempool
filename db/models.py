@@ -60,6 +60,7 @@ class UserOp(Base):
     valid_until = Column(DateTime)
     expires_at = Column(DateTime, index=True, nullable=False)
     is_trusted = Column(Boolean, index=True, nullable=False)
+    accepted = Column(Boolean)
     tx_hash = Column(String(length=66))
     bytecodes = Relationship(
         "Bytecode",

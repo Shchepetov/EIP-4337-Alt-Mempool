@@ -164,7 +164,9 @@ async def test_replaces_user_op_with_same_sender(client, send_request):
     send_request.user_op.nonce += 1
     user_op_2_hash = await client.send_user_op(send_request.json())
 
-    assert await client.get_user_op(user_op_1_hash) is None
+    await client.get_user_op(
+        user_op_1_hash, expected_error_message="The UserOp does not exist"
+    )
 
     user_op = await client.get_user_op(user_op_2_hash)
     assert user_op["hash"] == user_op_2_hash
