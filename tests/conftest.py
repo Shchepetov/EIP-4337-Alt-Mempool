@@ -127,7 +127,12 @@ class SendRequest:
 
     @classmethod
     def _to_hex(cls, v) -> str:
-        return v if isinstance(v, str) else hex(v)
+        if isinstance(v, str):
+            return v
+        if isinstance(v, int):
+            return hex(v)
+        if isinstance(v, bytes):
+            return "0x" + bytes.hex(v)
 
 
 @pytest.fixture(scope="session")

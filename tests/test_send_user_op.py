@@ -130,8 +130,8 @@ async def test_saves_correct_user_op(client, send_request):
     user_op_hash = await client.send_user_op(request_json)
     user_op = await client.get_user_op(user_op_hash)
 
-    for field in request_json["user_op"].keys():
-        assert user_op[field] == getattr(send_request.user_op, field)
+    for (key, value) in request_json["user_op"].items():
+        assert user_op[key].lower() == value.lower()
 
     assert user_op["entry_point"] == send_request.entry_point
 
@@ -545,7 +545,7 @@ async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
 
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
-    assert not user_op["is_trusted"]
+    assert not int(user_op["is_trusted"], 16)
 
 
 @pytest.mark.asyncio

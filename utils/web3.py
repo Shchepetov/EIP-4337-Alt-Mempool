@@ -23,15 +23,21 @@ def is_address(s) -> bool:
 
 
 def is_contract(address) -> bool:
-    if not is_address(address) or address == ZERO_ADDRESS:
+    if address == ZERO_ADDRESS:
         return False
 
     bytecode = web3.eth.get_code(address)
     return bool(len(bytecode))
 
 
-def address_from_memory(address: str) -> str:
+def get_address_from_memory(address: str) -> str:
     return web3.toChecksumAddress("0x" + address[24:])
+
+
+def get_address_from_first_20_bytes(address: bytes) -> str:
+    address = "0x" + address[:20].hex()
+    if is_address(address):
+        return web3.toChecksumAddress(address)
 
 
 def get_user_op_receipt(

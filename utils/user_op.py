@@ -6,7 +6,7 @@ from app.config import settings
 
 DEFAULTS_FOR_USER_OP = {
     "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
-    "nonce": 1,
+    "nonce": 0,
     "init_code": "0x",
     "call_data": "0x12345678",
     "call_gas_limit": 5000000,
@@ -22,15 +22,15 @@ DEFAULTS_FOR_USER_OP = {
 class UserOp(BaseModel):
     sender: str
     nonce: int
-    init_code: str
-    call_data: str
+    init_code: bytes
+    call_data: bytes
     call_gas_limit: int
     verification_gas_limit: int
     pre_verification_gas: int
     max_fee_per_gas: int
     max_priority_fee_per_gas: int
-    paymaster_and_data: str
-    signature: str
+    paymaster_and_data: bytes
+    signature: bytes
 
     class Config:
         extra = Extra.allow
@@ -69,19 +69,19 @@ class UserOp(BaseModel):
         values = [
             self.sender,
             self.nonce,
-            web3.toBytes(hexstr=self.init_code),
-            web3.toBytes(hexstr=self.call_data),
+            self._to_bytes(self.init_code),
+            self._to_bytes(self.call_data),
             self.call_gas_limit,
             self.verification_gas_limit,
             self.pre_verification_gas,
             self.max_fee_per_gas,
             self.max_priority_fee_per_gas,
-            web3.toBytes(hexstr=self.paymaster_and_data),
+            self._to_bytes(self.paymaster_and_data),
         ]
 
         if with_signature:
             types.append("bytes")
-            values.append(web3.toBytes(hexstr=self.signature))
+            values.append(self._to_bytes(self.signature))
 
         return eth_abi.encode(types, values)
 
@@ -107,3 +107,7 @@ class UserOp(BaseModel):
             self.paymaster_and_data,
             self.signature,
         ]
+
+    @classmethod
+    def _to_bytes(cls, v):
+        return v if isinstance(v, bytes) else web3.toBytes(hexstr=v)

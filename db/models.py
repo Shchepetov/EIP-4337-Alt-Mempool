@@ -46,16 +46,16 @@ class UserOp(Base):
     hash = Column(String(length=66), unique=True, index=True)
     sender = Column(String(length=42))
     nonce = Column(Uint256)
-    init_code = Column(String)
-    call_data = Column(String)
+    init_code = Column(LargeBinary)
+    call_data = Column(LargeBinary)
     call_gas_limit = Column(Uint256)
     verification_gas_limit = Column(Uint256)
     pre_verification_gas = Column(Uint256)
     max_fee_per_gas = Column(Uint256)
     max_priority_fee_per_gas = Column(Uint256)
-    paymaster_and_data = Column(String)
+    paymaster_and_data = Column(LargeBinary)
     entry_point = Column(String(length=42))
-    signature = Column(String)
+    signature = Column(LargeBinary)
     valid_after = Column(DateTime, index=True)
     valid_until = Column(DateTime)
     expires_at = Column(DateTime, index=True, nullable=False)
@@ -68,6 +68,17 @@ class UserOp(Base):
         back_populates="user_ops",
         lazy="noload",
     )
+
+    def serialize(self):
+        obj_dict = super().__dict__.copy()
+        for key, value in obj_dict.items():
+            if key == "_sa_instance_state":
+                continue
+            if isinstance(value, bytes):
+                obj_dict[key] = "0x" + value.hex()
+            elif isinstance(value, int):
+                obj_dict[key] = hex(value)
+        return obj_dict
 
 
 class Bytecode(Base):

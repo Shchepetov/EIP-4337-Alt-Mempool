@@ -138,11 +138,10 @@ async def validate_before_simulation(
         helper_contracts.append(user_op.sender)
     else:
         initializing = True
-        factory_address = user_op.init_code[:42]
-        if not (
-            utils.web3.is_address(factory_address)
-            and utils.web3.is_contract(factory_address)
-        ):
+        factory_address = utils.web3.get_address_from_first_20_bytes(
+            user_op.init_code
+        )
+        if not (factory_address and utils.web3.is_contract(factory_address)):
             raise HTTPException(
                 status_code=422,
                 detail="'sender' and the first 20 bytes of 'init_code' do not "
@@ -195,9 +194,13 @@ async def validate_before_simulation(
             "sufficiently high to be included with the current block.",
         )
 
-    if any(num != "0" for num in user_op.paymaster_and_data[2:]):
-        paymaster_addresss = user_op.paymaster_and_data[:42]
-        if not utils.web3.is_contract(paymaster_addresss):
+    if user_op.paymaster_and_data:
+        paymaster_address = utils.web3.get_address_from_first_20_bytes(
+            user_op.paymaster_and_data
+        )
+        if not (
+            paymaster_address and utils.web3.is_contract(paymaster_address)
+        ):
             raise HTTPException(
                 status_code=422,
                 detail="The first 20 bytes of 'paymaster_and_data' do not "
@@ -205,7 +208,7 @@ async def validate_before_simulation(
             )
 
         if entry_point.balanceOf(
-            paymaster_addresss
+            paymaster_address
         ) < user_op.get_required_prefund(with_paymaster=True):
             raise HTTPException(
                 status_code=422,
@@ -213,7 +216,7 @@ async def validate_before_simulation(
                 "for the UserOp.",
             )
 
-        helper_contracts.append(paymaster_addresss)
+        helper_contracts.append(paymaster_address)
 
     return initializing, helper_contracts
 
@@ -349,7 +352,7 @@ def validate_called_instructions(
             "EXTCODESIZE",
             "EXTCODECOPY",
         ):
-            target = utils.web3.address_from_memory(
+            target = utils.web3.get_address_from_memory(
                 instructions[i]["stack"][-1]
             )
             if not utils.web3.is_contract(target):
@@ -365,7 +368,7 @@ def validate_called_instructions(
             "DELEGATECALL",
             "STATICCALL",
         ):
-            target = utils.web3.address_from_memory(
+            target = utils.web3.get_address_from_memory(
                 instructions[i]["stack"][-2]
             )
             if not utils.web3.is_contract(target):

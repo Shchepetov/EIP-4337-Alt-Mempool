@@ -38,12 +38,15 @@ class UserOp(utils.user_op.UserOp):
         "init_code", "call_data", "paymaster_and_data", "signature", pre=True
     )
     def bytes_(cls, v):
+        if v == "0x":
+            return b""
+
         validate_hex(v)
-        if not (len(v) % 2 == 0 or v == "0x0"):
+        if not (len(v) % 2 == 0):
             raise HTTPException(
                 status_code=422, detail="Incorrect bytes string."
             )
-        return v
+        return bytes.fromhex(v[2:])
 
 
 class SendRequest(BaseModel):
@@ -133,7 +136,7 @@ async def get_user_op_by_hash(
         raise HTTPException(
             status_code=422, detail="The UserOp does not exist."
         )
-    return user_op
+    return user_op.serialize()
 
 
 @app.post("/api/eth_getUserOperationReceipt")
@@ -158,6 +161,7 @@ async def supported_entry_points(session: AsyncSession = Depends(get_session)):
 
 @app.post("/api/eth_lastUserOperations")
 async def last_user_ops(session: AsyncSession = Depends(get_session)):
-    return await db.service.get_last_user_ops(
+    user_ops = await db.service.get_last_user_ops(
         session, settings.last_user_ops_count
     )
+    return [user_op.serialize() for user_op in user_ops]
