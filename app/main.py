@@ -27,6 +27,9 @@ class UserOp(utils.user_op.UserOp):
     )
     def uint256(cls, v):
         validate_hex(v)
+        if v == "0x":
+            return 0
+
         v = int(v, 16)
         if not 0 <= v < 2**256:
             raise HTTPException(
