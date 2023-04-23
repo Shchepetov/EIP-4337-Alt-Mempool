@@ -3,7 +3,6 @@ import datetime
 import time
 from unittest.mock import patch
 
-import eth_abi
 import pytest
 from brownie import (
     accounts,
@@ -19,6 +18,17 @@ from app.config import settings
 @pytest.mark.asyncio
 async def test_accepts_user_op(client, send_request):
     await client.send_user_op(send_request.json())
+
+
+@pytest.mark.asyncio
+async def test_rejects_user_op_from_not_supported_entry_point(
+    client, send_request, contracts
+):
+    send_request.entry_point = contracts.counter.address
+    await client.send_user_op(
+        send_request.json(),
+        expected_error_message="The EntryPoint is not supported",
+    )
 
 
 @pytest.mark.asyncio

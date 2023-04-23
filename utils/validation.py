@@ -106,6 +106,16 @@ def validate_hex(v):
     return v
 
 
+async def validate_entry_point(session, entry_point_address):
+    is_entry_point_supported = await db.service.is_entry_point_supported(
+        session, entry_point_address
+    )
+    if not is_entry_point_supported:
+        raise HTTPException(
+            status_code=422, detail="The EntryPoint is not supported."
+        )
+
+
 async def validate_user_op(
     session, user_op, entry_point
 ) -> (SimulationResult, bool, hexbytes.HexBytes):

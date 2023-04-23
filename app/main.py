@@ -57,14 +57,6 @@ class SendRequest(BaseModel):
         validate_address
     )
 
-    @validator("entry_point")
-    def supported_entry_point(cls, v):
-        if v.lower() not in map(str.lower, settings.supported_entry_points):
-            raise HTTPException(
-                status_code=422, detail="EntryPoint is not supported."
-            )
-        return v
-
 
 class UserOpHash(BaseModel):
     @validator("hash")
@@ -97,6 +89,7 @@ app = FastAPI()
 async def send_user_operation(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
+    await utils.validation.validate_entry_point(session, request.entry_point)
     entry_point = EntryPoint.at(request.entry_point)
     request.user_op.fill_hash(entry_point)
     (
@@ -127,7 +120,10 @@ async def send_user_operation(
 
 
 @app.post("/api/eth_estimateUserOperationGas")
-async def estimate_user_op(request: SendRequest):
+async def estimate_user_op(
+    request: SendRequest, session: AsyncSession = Depends(get_session)
+):
+    await utils.validation.validate_entry_point(session, request.entry_point)
     entry_point = EntryPoint.at(request.entry_point)
     simulation_result = utils.validation.run_simulation(
         request.user_op, entry_point
@@ -176,7 +172,8 @@ async def get_user_op_receipt(
 
 @app.post("/api/eth_supportedEntryPoints")
 async def supported_entry_points(session: AsyncSession = Depends(get_session)):
-    pass
+    entry_points = await db.service.get_supported_entry_points(session)
+    return [entry_point.address for entry_point in entry_points]
 
 
 @app.post("/api/eth_lastUserOperations")

@@ -100,15 +100,4 @@ class EntryPoint(Base):
     __tablename__ = "entry_points"
 
     id = Column(Integer, primary_key=True)
-    sender = Column(String(length=42))
-
-
-class User(Base):
-    __tablename__ = "users"
-
-    id = Column(Integer, autoincrement=True, primary_key=True)
-    token_hash = Column(String(length=66), index=True)
-    token_expires_at = Column(DateTime, index=True)
-    requests_last_minute_count = Column(Integer)
-    requests_last_day_count = Column(Integer)
-    counter_updated_at = Column(DateTime)
+    address = Column(String(length=42), unique=True)

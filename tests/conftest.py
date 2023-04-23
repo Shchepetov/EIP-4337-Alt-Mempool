@@ -8,7 +8,6 @@ import pytest_asyncio
 from brownie import (
     accounts,
     chain,
-    web3,
     TestAggregatedAccountFactory,
     TestExpirePaymaster,
     TestPaymasterAcceptAll,
@@ -22,9 +21,7 @@ from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-import app.config as config
 import db.utils
-from app.config import Settings
 from db.base import engine, async_session, Base
 from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
 
@@ -51,6 +48,11 @@ class AppClient:
     async def get_user_op_receipt(self, hash_: str, **kwargs) -> dict:
         return await self._make_request(
             "eth_getUserOperationReceipt", json={"hash": hash_}, **kwargs
+        )
+
+    async def supported_entry_points(self, **kwargs) -> dict:
+        return await self._make_request(
+            "eth_supportedEntryPoints", json={}, **kwargs
         )
 
     async def last_user_ops(self, **kwargs) -> dict:
@@ -161,33 +163,27 @@ def contracts() -> dict:
     return TestContracts()
 
 
-@pytest_asyncio.fixture(scope="session")
-async def client(contracts) -> AppClient:
-    config.settings = Settings(
-        supported_entry_points=[contracts.entry_point.address],
-        rpc_server=web3.provider.endpoint_uri,
-    )
+@pytest_asyncio.fixture(autouse=True)
+async def session(init_models, contracts) -> AsyncGenerator[AsyncSession, None]:
+    async with async_session() as session:
+        chain.revert()
 
+        for name, table in Base.metadata.tables.items():
+            await session.execute(delete(table))
+        await db.service.update_entry_point(
+            session, contracts.entry_point.address, True
+        )
+        await session.commit()
+
+        yield session
+
+
+@pytest_asyncio.fixture(scope="function")
+async def client() -> AppClient:
     from app.main import app
 
     async with AsyncClient(app=app, base_url="https://localhost") as client:
         yield AppClient(client)
-
-
-@pytest_asyncio.fixture(autouse=True)
-async def session(
-    init_models,
-) -> AsyncGenerator[AsyncSession, None]:
-    async with async_session() as session:
-        yield session
-
-        # reset test network state
-        chain.revert()
-
-        # delete all data from all tables after test
-        for name, table in Base.metadata.tables.items():
-            await session.execute(delete(table))
-        await session.commit()
 
 
 @pytest.fixture(scope="function")
