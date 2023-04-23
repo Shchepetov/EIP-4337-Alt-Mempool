@@ -1,3 +1,5 @@
+from typing import Optional
+
 import eth_abi
 from brownie import web3
 from pydantic import BaseModel, Extra
@@ -24,12 +26,12 @@ class UserOp(BaseModel):
     nonce: int
     init_code: bytes
     call_data: bytes
-    call_gas_limit: int
-    verification_gas_limit: int
-    pre_verification_gas: int
-    max_fee_per_gas: int
+    call_gas_limit: Optional[int] = 0
+    verification_gas_limit: Optional[int] = int(1e7)
+    pre_verification_gas: Optional[int] = 0
+    max_fee_per_gas: Optional[int] = 0
     max_priority_fee_per_gas: int
-    paymaster_and_data: bytes
+    paymaster_and_data: Optional[bytes] = b""
     signature: bytes
 
     class Config:

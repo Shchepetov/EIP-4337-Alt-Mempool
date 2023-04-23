@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import AsyncGenerator
 
 import brownie
+import eth_abi
 import pytest
 import pytest_asyncio
 from brownie import (
@@ -37,6 +38,11 @@ class AppClient:
             "eth_sendUserOperation", json=request, **kwargs
         )
 
+    async def estimate_user_op(self, request: dict, **kwargs) -> dict:
+        return await self._make_request(
+            "eth_estimateUserOperationGas", json=request, **kwargs
+        )
+
     async def get_user_op(self, hash_: str, **kwargs) -> dict:
         return await self._make_request(
             "eth_getUserOperationByHash", json={"hash": hash_}, **kwargs
@@ -65,14 +71,16 @@ class AppClient:
         if response.status_code == 200:
             if expected_error_message is not None:
                 raise Exception(
-                    f'Expected error message "{expected_error_message}", but response code is 200'
+                    f'Expected error message "{expected_error_message}", but '
+                    f"response code is 200"
                 )
             return response_json
 
         if expected_error_message is not None:
             if expected_error_message not in response_json["detail"]:
                 raise Exception(
-                    f'Expected error message "{expected_error_message}", but got "{response_json["detail"]}"'
+                    f'Expected error message "{expected_error_message}", but '
+                    f'got "{response_json["detail"]}"'
                 )
             return response_json
 
@@ -208,6 +216,22 @@ def get_send_request(contracts, salt):
     user_op.sign(accounts[0].address, contracts.entry_point)
 
     return SendRequest(user_op, contracts.entry_point.address)
+
+
+@pytest.fixture(scope="function")
+def send_request_with_expire_paymaster(contracts, send_request):
+    def f(valid_after: int, valid_until: int):
+        time_range = eth_abi.encode(
+            ["uint48", "uint48"], [valid_after, valid_until]
+        )
+        send_request.user_op.paymaster_and_data = (
+            contracts.expire_paymaster.address + time_range.hex()
+        )
+        send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+
+        return send_request
+
+    return f
 
 
 @pytest.fixture(scope="function")

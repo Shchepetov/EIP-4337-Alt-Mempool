@@ -84,6 +84,12 @@ class UserOpReceipt(BaseModel):
     tx_hash: str
 
 
+class UserOpGasEstimation(BaseModel):
+    pre_verification_gas: int
+    verification_gas: int
+    call_gas_limit: int
+
+
 app = FastAPI()
 
 
@@ -94,9 +100,8 @@ async def send_user_operation(
     entry_point = EntryPoint.at(request.entry_point)
     request.user_op.fill_hash(entry_point)
     (
-        validation_result,
+        simulation_result,
         is_trusted,
-        expires_at,
         helper_contracts_bytecode_hashes,
     ) = await validate_user_op(session, request.user_op, entry_point)
 
@@ -104,13 +109,14 @@ async def send_user_operation(
     user_op = await db.service.add_user_op(
         session,
         request.user_op,
-        is_trusted=is_trusted,
         entry_point=request.entry_point,
-        valid_after=datetime.fromtimestamp(validation_result.valid_after),
+        pre_op_gas=simulation_result.pre_op_gas,
+        is_trusted=is_trusted,
+        valid_after=datetime.fromtimestamp(simulation_result.valid_after),
         valid_until=datetime.fromtimestamp(
-            min(validation_result.valid_until, constants.MAX_TIMESTAMP)
+            min(simulation_result.valid_until, constants.MAX_TIMESTAMP)
         ),
-        expires_at=datetime.fromtimestamp(expires_at),
+        expires_at=datetime.fromtimestamp(simulation_result.expires_at),
     )
     await db.service.add_user_op_bytecodes(
         session, user_op, helper_contracts_bytecode_hashes
@@ -121,10 +127,23 @@ async def send_user_operation(
 
 
 @app.post("/api/eth_estimateUserOperationGas")
-async def estimate_user_op(
-    request: SendRequest, session: AsyncSession = Depends(get_session)
-):
-    return request
+async def estimate_user_op(request: SendRequest):
+    entry_point = EntryPoint.at(request.entry_point)
+    simulation_result = utils.validation.run_simulation(
+        request.user_op, entry_point
+    )
+    call_gas_limit = utils.web3.estimate_gas(
+        from_=entry_point.address,
+        to=request.user_op.sender,
+        data=request.user_op.call_data,
+    )
+    pre_verification_gas = request.user_op.get_calldata_gas()
+
+    return UserOpGasEstimation(
+        pre_verification_gas=pre_verification_gas,
+        verification_gas=simulation_result.pre_op_gas,
+        call_gas_limit=call_gas_limit,
+    )
 
 
 @app.post("/api/eth_getUserOperationByHash")

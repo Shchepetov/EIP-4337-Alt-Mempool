@@ -56,6 +56,7 @@ class UserOp(Base):
     paymaster_and_data = Column(LargeBinary)
     entry_point = Column(String(length=42))
     signature = Column(LargeBinary)
+    pre_op_gas = Column(Uint256)
     valid_after = Column(DateTime, index=True)
     valid_until = Column(DateTime)
     expires_at = Column(DateTime, index=True, nullable=False)

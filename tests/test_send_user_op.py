@@ -353,54 +353,41 @@ async def test_rejects_user_op_failing_simulation(client, send_request):
 
 
 @pytest.mark.asyncio
-async def test_rejects_expired_user_op(client, contracts, send_request):
+async def test_rejects_expired_user_op(
+    client, send_request_with_expire_paymaster
+):
     now = int(time.time())
-    time_range = eth_abi.encode(["uint48", "uint48"], [now, now])
-    send_request.user_op.paymaster_and_data = (
-        contracts.expire_paymaster.address + time_range.hex()
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-
+    send_request = send_request_with_expire_paymaster(now, now)
     await client.send_user_op(
         send_request.json(),
-        expected_error_message="Unable to add the UserOp as it is expired",
+        expected_error_message="Unable to process the UserOp as it is expired",
     )
 
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_valid_after_expiry_period(
-    client, contracts, send_request
+    client, send_request_with_expire_paymaster
 ):
     now = int(time.time())
-    time_range = eth_abi.encode(
-        ["uint48", "uint48"], [now + settings.user_op_lifetime + 10, 0]
+    send_request = send_request_with_expire_paymaster(
+        now + settings.user_op_lifetime + 10, 0
     )
-    send_request.user_op.paymaster_and_data = (
-        contracts.expire_paymaster.address + time_range.hex()
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
 
     await client.send_user_op(
         send_request.json(),
-        expected_error_message="Unable to add the UserOp as it expires in the "
-        "pool before its validity period starts.",
+        expected_error_message="Unable to process the UserOp as it expires in "
+        "the pool before its validity period starts.",
     )
 
 
 @pytest.mark.asyncio
 async def test_saves_validity_period_in_user_op(
-    client, contracts, send_request
+    client, send_request_with_expire_paymaster
 ):
     now = int(time.time())
     valid_after = now
     valid_until = now + 300
-    time_range = eth_abi.encode(
-        ["uint48", "uint48"], [valid_after, valid_until]
-    )
-    send_request.user_op.paymaster_and_data = (
-        contracts.expire_paymaster.address + time_range.hex()
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    send_request = send_request_with_expire_paymaster(valid_after, valid_until)
 
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
@@ -417,14 +404,10 @@ async def test_saves_validity_period_in_user_op(
 
 @pytest.mark.asyncio
 async def test_saves_another_valid_until_in_user_op_if_simulation_returns_uint64_max(
-    client, contracts, send_request
+    client, send_request_with_expire_paymaster
 ):
     now = int(time.time())
-    time_range = eth_abi.encode(["uint48", "uint48"], [now, 0])
-    send_request.user_op.paymaster_and_data = (
-        contracts.expire_paymaster.address + time_range.hex()
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    send_request = send_request_with_expire_paymaster(now, 0)
 
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
@@ -437,15 +420,11 @@ async def test_saves_another_valid_until_in_user_op_if_simulation_returns_uint64
 
 @pytest.mark.asyncio
 async def test_saves_expiry_time_equal_valid_until_in_user_op(
-    client, contracts, send_request
+    client, send_request_with_expire_paymaster
 ):
     now = int(time.time())
     valid_until = int(now + settings.user_op_lifetime / 2)
-    time_range = eth_abi.encode(["uint48", "uint48"], [now, valid_until])
-    send_request.user_op.paymaster_and_data = (
-        contracts.expire_paymaster.address + time_range.hex()
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    send_request = send_request_with_expire_paymaster(now, valid_until)
 
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
@@ -458,14 +437,10 @@ async def test_saves_expiry_time_equal_valid_until_in_user_op(
 
 @pytest.mark.asyncio
 async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
-    client, contracts, send_request
+    client, send_request_with_expire_paymaster
 ):
     now = int(time.time())
-    time_range = eth_abi.encode(["uint48", "uint48"], [now, 0])
-    send_request.user_op.paymaster_and_data = (
-        contracts.expire_paymaster.address + time_range.hex()
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    send_request = send_request_with_expire_paymaster(now, 0)
 
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)

@@ -76,3 +76,8 @@ def get_user_op_receipt(
         return succeed_user_op_executions[0].transactionHash, True
 
     return None, None
+
+
+def estimate_gas(from_, to, data):
+    w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
+    return w3.eth.estimate_gas({"from": from_, "to": to, "data": data})

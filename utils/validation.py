@@ -30,25 +30,25 @@ FORBIDDEN_OPCODES = (
 )
 
 
-class ValidationResult:
-    def __init__(self, validation_result_string):
+class SimulationResult:
+    def __init__(self, simulation_result_string):
         types = [
             "(uint256,uint256,bool,uint48,uint48,bytes)",
             "(uint256,uint256)",
             "(uint256,uint256)",
             "(uint256,uint256)",
         ]
-        signature = validation_result_string[2:10].lower()
+        signature = simulation_result_string[2:10].lower()
         if signature == constants.VALIDATION_RESULT_WITH_AGGREGATION_SIGNATURE:
             types.append("(address,(uint256,uint256))")
         elif signature != constants.VALIDATION_RESULT_SIGNATURE:
             raise HTTPException(
                 status_code=422,
                 detail=f"The simulation of the UserOp has failed with an "
-                f"error: {validation_result_string}",
+                f"error: {simulation_result_string}",
             )
         decoded = eth_abi.decode(
-            types, bytes.fromhex(validation_result_string[10:])
+            types, bytes.fromhex(simulation_result_string[10:])
         )
         (
             self.pre_op_gas,
@@ -65,6 +65,26 @@ class ValidationResult:
             == constants.VALIDATION_RESULT_WITH_AGGREGATION_SIGNATURE
             else None
         )
+
+        current_timestamp = int(time.time())
+        self.expires_at = min(
+            current_timestamp + settings.user_op_lifetime,
+            self.valid_until,
+        )
+
+    def validate(self):
+        current_timestamp = int(time.time())
+        if self.valid_until <= current_timestamp:
+            raise HTTPException(
+                status_code=422,
+                detail="Unable to process the UserOp as it is expired.",
+            )
+        if self.valid_after > current_timestamp + settings.user_op_lifetime:
+            raise HTTPException(
+                status_code=422,
+                detail="Unable to process the UserOp as it expires in the pool "
+                "before its validity period starts.",
+            )
 
 
 def validate_address(v):
@@ -88,15 +108,16 @@ def validate_hex(v):
 
 async def validate_user_op(
     session, user_op, entry_point
-) -> (ValidationResult, bool, int, hexbytes.HexBytes):
+) -> (SimulationResult, bool, hexbytes.HexBytes):
     initializing, helper_contracts = await validate_before_simulation(
         session, user_op, entry_point
     )
 
-    validation_result, expires_at = run_simulation(user_op, entry_point)
-    if validation_result.aggregator:
+    simulation_result = run_simulation(user_op, entry_point)
+    simulation_result.validate()
+    if simulation_result.aggregator:
         helper_contracts.append(
-            web3.toChecksumAddress(validation_result.aggregator)
+            web3.toChecksumAddress(simulation_result.aggregator)
         )
 
     helper_contracts_bytecode_hashes = await validate_helper_contracts(
@@ -116,9 +137,8 @@ async def validate_user_op(
         )
 
     return (
-        validation_result,
+        simulation_result,
         is_trusted,
-        expires_at,
         helper_contracts_bytecode_hashes,
     )
 
@@ -221,7 +241,7 @@ async def validate_before_simulation(
     return initializing, helper_contracts
 
 
-def run_simulation(user_op, entry_point) -> (ValidationResult, int):
+def run_simulation(user_op, entry_point) -> (SimulationResult, int):
     try:
         entry_point.simulateValidation(user_op.values())
         raise HTTPException(
@@ -230,28 +250,7 @@ def run_simulation(user_op, entry_point) -> (ValidationResult, int):
     except Exception as e:
         err_msg = e.revert_msg.replace("typed error: ", "")
 
-    validation_result = ValidationResult(err_msg)
-    current_timestamp = int(time.time())
-    if validation_result.valid_until <= current_timestamp:
-        raise HTTPException(
-            status_code=422,
-            detail="Unable to add the UserOp as it is expired.",
-        )
-    if (
-        validation_result.valid_after
-        > current_timestamp + settings.user_op_lifetime
-    ):
-        raise HTTPException(
-            status_code=422,
-            detail="Unable to add the UserOp as it expires in the pool before "
-            "its validity period starts.",
-        )
-    expires_at = min(
-        current_timestamp + settings.user_op_lifetime,
-        validation_result.valid_until,
-    )
-
-    return validation_result, expires_at
+    return SimulationResult(err_msg)
 
 
 async def validate_helper_contracts(session, helper_contracts) -> list[str]:
