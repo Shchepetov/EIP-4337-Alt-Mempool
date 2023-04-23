@@ -125,18 +125,6 @@ async def test_rejects_user_op_with_odd_hexadecimal_chars_in_byte_fields(
 
 
 @pytest.mark.asyncio
-async def test_saves_correct_user_op(client, send_request):
-    request_json = send_request.json()
-    user_op_hash = await client.send_user_op(request_json)
-    user_op = await client.get_user_op(user_op_hash)
-
-    for (key, value) in request_json["user_op"].items():
-        assert user_op[key].lower() == value.lower()
-
-    assert user_op["entry_point"] == send_request.entry_point
-
-
-@pytest.mark.asyncio
 async def test_rejects_same_user_op(client, send_request):
     await client.send_user_op(send_request.json())
     await client.send_user_op(

@@ -155,6 +155,7 @@ async def get_user_op_by_hash(
         raise HTTPException(
             status_code=422, detail="The UserOp does not exist."
         )
+    await db.service.refresh_user_op_receipt(user_op)
     return user_op.serialize()
 
 
