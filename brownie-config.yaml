@@ -8,4 +8,5 @@ networks:
   default: xdai-main-fork
   xdai-main-fork:
     cmd_settings:
+      port: 7545
       fork: https://restless-sleek-yard.xdai.discover.quiknode.pro/${WEB3_QUICKNODE_KEY}

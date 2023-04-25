@@ -42,7 +42,7 @@ async def update_entry_point(address: str, is_supported: bool):
 
 @cli.command()
 def runserver():
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8545)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ async def init_models(engine):
 
 async def create_and_init(db_name):
     await create_database(db_name)
-    engine = create_async_engine(f"{settings.db_url_base}/{db_name}")
+    engine = create_async_engine(f"{settings.get_db_url()}/{db_name}")
     await init_models(engine)
 
 
