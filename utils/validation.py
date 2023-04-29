@@ -4,7 +4,7 @@ import time
 import brownie
 import eth_abi
 import hexbytes
-from brownie import web3, history, ZERO_ADDRESS
+from brownie import web3, ZERO_ADDRESS
 from fastapi import HTTPException
 
 import app.constants as constants
@@ -143,6 +143,7 @@ async def validate_user_op(
             user_op,
             helper_contracts_bytecode_hashes,
             entry_point,
+            simulation_result,
             initializing,
         )
 
@@ -252,15 +253,8 @@ async def validate_before_simulation(
 
 
 def run_simulation(user_op, entry_point) -> (SimulationResult, int):
-    try:
-        entry_point.simulateValidation(user_op.values())
-        raise HTTPException(
-            status_code=500, detail="The simulation didn't revert."
-        )
-    except Exception as e:
-        err_msg = e.revert_msg.replace("typed error: ", "")
-
-    return SimulationResult(err_msg)
+    response = utils.web3.call_simulate_validation(user_op, entry_point)
+    return SimulationResult(response["error"]["data"])
 
 
 async def validate_helper_contracts(session, helper_contracts) -> list[str]:
@@ -284,6 +278,7 @@ async def validate_after_simulation(
     user_op,
     helper_contracts_bytecode_hashes,
     entry_point: brownie.Contract,
+    simulation_result,
     initializing: bool,
 ):
     if await db.service.any_user_op_with_another_sender_using_bytecodes(
@@ -295,8 +290,11 @@ async def validate_after_simulation(
             " that uses the same helper contracts.",
         )
 
+    if not getattr(simulation_result, "trace", None):
+        return
+
     (helper_contract, error_msg) = validate_called_instructions(
-        history[-1].trace, entry_point, initializing=initializing
+        simulation_result.trace, entry_point, initializing=initializing
     )
     if error_msg:
         await db.service.update_bytecode_from_address(
@@ -309,22 +307,19 @@ async def validate_after_simulation(
 
 def validate_called_instructions(
     instructions: list[dict], entry_point: brownie.Contract, initializing: bool
-) -> (str, str):
+) -> (int, str):
     create2_can_be_called = initializing
-    helper_contract = ""
+    helper_contract_number = -1
     for i in range(len(instructions)):
-        if instructions[i][
-            "address"
-        ] == entry_point.address or not is_caller_known(instructions[i]):
+        opcode = instructions[i]["op"]
+        if instructions[i]["depth"] == 1:
+            if opcode == "NUMBER":
+                helper_contract_number += 1
             continue
 
-        if instructions[i]["depth"] == 1:
-            helper_contract = instructions[i]["address"]
-
-        opcode = instructions[i]["op"]
         if opcode in FORBIDDEN_OPCODES:
             return (
-                helper_contract,
+                helper_contract_number,
                 f"The UserOp is using the forbidden opcode '{opcode}' during "
                 f"validation.",
             )
@@ -332,7 +327,7 @@ def validate_called_instructions(
         if opcode == "CREATE2":
             if not create2_can_be_called:
                 return (
-                    helper_contract,
+                    helper_contract_number,
                     "The UserOp is using the 'CREATE2' opcode in an "
                     "unacceptable context.",
                 )
@@ -347,7 +342,7 @@ def validate_called_instructions(
             "STATICCALL",
         ):
             return (
-                helper_contract,
+                helper_contract_number,
                 "The UserOp is using the 'GAS' opcode during validation, but "
                 "not before the external call",
             )
@@ -366,7 +361,7 @@ def validate_called_instructions(
             )
             if not utils.web3.is_contract(target):
                 return (
-                    helper_contract,
+                    helper_contract_number,
                     "The UserOp during validation accesses the code at an "
                     "address that does not contain a smart contract.",
                 )
@@ -382,7 +377,7 @@ def validate_called_instructions(
             )
             if not utils.web3.is_contract(target):
                 return (
-                    helper_contract,
+                    helper_contract_number,
                     "The UserOp during validation calling an address that does "
                     "not contain a smart contract.",
                 )
@@ -399,12 +394,8 @@ def validate_called_instructions(
                     "00000000",
                 ):
                     return (
-                        helper_contract,
+                        helper_contract_number,
                         "The UserOp is calling the EntryPoint during "
                         "validation, but only 'depositTo' method is allowed.",
                     )
     return None, None
-
-
-def is_caller_known(instruction: dict) -> bool:
-    return not instruction["fn"].startswith("<UnknownContract>")

@@ -5,7 +5,6 @@ from unittest.mock import patch
 
 import pytest
 from brownie import (
-    accounts,
     TestPaymasterAcceptAll,
 )
 
@@ -22,9 +21,9 @@ async def test_accepts_user_op(client, send_request):
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_from_not_supported_entry_point(
-    client, send_request, contracts
+    client, send_request, test_contracts
 ):
-    send_request.entry_point = contracts.counter.address
+    send_request.entry_point = test_contracts.test_counter.address
     await client.send_user_op(
         send_request.json(),
         expected_error_message="The EntryPoint is not supported",
@@ -172,9 +171,9 @@ async def test_replaces_user_op_with_same_sender(client, send_request):
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
-    client, send_request
+    client, test_account, send_request
 ):
-    eoa_address = accounts[0].address
+    eoa_address = test_account.address
     send_request.user_op.sender = eoa_address
     send_request.user_op.init_code = eoa_address
     await client.send_user_op(
@@ -283,9 +282,9 @@ async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_paymaster(
-    client, contracts, send_request
+    client, test_contracts, test_account, send_request
 ):
-    eoa_address = accounts[0].address
+    eoa_address = test_account.address
     send_request.user_op.paymaster_and_data = eoa_address
     await client.send_user_op(
         send_request.json(),
@@ -293,19 +292,21 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
         "not represent a smart contract address",
     )
 
-    send_request.user_op.paymaster_and_data = contracts.paymaster.address
+    send_request.user_op.paymaster_and_data = (
+        test_contracts.test_paymaster_accept_all.address
+    )
     await client.send_user_op(send_request.json())
 
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
-    client, contracts, send_request
+    client, test_contracts, test_account, send_request
 ):
-    new_paymaster = accounts[0].deploy(
-        TestPaymasterAcceptAll, contracts.entry_point.address
+    new_paymaster = test_account.deploy(
+        TestPaymasterAcceptAll, test_contracts.entry_point.address
     )
     send_request.user_op.paymaster_and_data = new_paymaster.address
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    send_request.user_op.sign(test_account.address, test_contracts.entry_point)
 
     await client.send_user_op(
         send_request.json(),
@@ -313,7 +314,7 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
         "to pay for the UserOp",
     )
 
-    contracts.entry_point.depositTo(
+    test_contracts.entry_point.depositTo(
         new_paymaster.address,
         {
             "value": send_request.user_op.get_required_prefund(
@@ -450,10 +451,10 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_prohibited_factory(
-    client, session, contracts, send_request
+    client, session, test_contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, contracts.simple_account_factory.address, False
+        session, test_contracts.simple_account_factory.address, False
     )
     await session.commit()
     await client.send_user_op(
@@ -465,10 +466,10 @@ async def test_rejects_user_op_with_prohibited_factory(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_prohibited_paymaster(
-    client, session, contracts, send_request
+    client, session, test_contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, contracts.paymaster.address, False
+        session, test_contracts.test_paymaster_accept_all.address, False
     )
     await session.commit()
     await client.send_user_op(
@@ -480,24 +481,24 @@ async def test_rejects_user_op_with_prohibited_paymaster(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_prohibited_aggregator(
-    client, session, contracts, send_request
+    client, session, test_contracts, test_account, send_request
 ):
     salt = 1
     send_request.user_op.sender = (
-        contracts.aggregated_account_factory.getAddress(
-            accounts[0].address, salt
+        test_contracts.aggregated_account_factory.getAddress(
+            test_account.address, salt
         )
     )
     send_request.user_op.init_code = (
-        contracts.aggregated_account_factory.address
-        + contracts.aggregated_account_factory.createAccount.encode_input(
-            accounts[0].address, salt
+        test_contracts.aggregated_account_factory.address
+        + test_contracts.aggregated_account_factory.createAccount.encode_input(
+            test_account.address, salt
         )[2:]
     )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
+    send_request.user_op.sign(test_account.address, test_contracts.entry_point)
 
     await db.service.update_bytecode_from_address(
-        session, contracts.aggregator.address, False
+        session, test_contracts.aggregator.address, False
     )
     await session.commit()
     await client.send_user_op(
@@ -509,10 +510,10 @@ async def test_rejects_user_op_with_prohibited_aggregator(
 
 @pytest.mark.asyncio
 async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
-    client, session, contracts, send_request
+    client, session, test_contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, contracts.simple_account_factory.address, True
+        session, test_contracts.simple_account_factory.address, True
     )
     await session.commit()
 
@@ -523,239 +524,19 @@ async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
 
 @pytest.mark.asyncio
 async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
-    client, session, contracts, send_request
+    client, session, test_contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, contracts.simple_account_factory.address, True
+        session, test_contracts.simple_account_factory.address, True
     )
     await db.service.update_bytecode_from_address(
-        session, contracts.paymaster.address, True
+        session, test_contracts.test_paymaster_accept_all.address, True
     )
     await session.commit()
 
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
     assert user_op["is_trusted"]
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    (
-        # TODO Test 'BASEFEE' and 'PREVRANDAO' opcodes
-        "GASPRICE",
-        "GASLIMIT",
-        "DIFFICULTY",
-        "TIMESTAMP",
-        "BLOCKHASH",
-        "NUMBER",
-        "SELFBALANCE",
-        "BALANCE",
-        "ORIGIN",
-        "CREATE",
-        "COINBASE",
-    ),
-)
-async def test_rejects_user_op_using_forbidden_opcodes(
-    client, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(opcode).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
-        f"'{opcode}' during validation",
-    )
-
-
-@pytest.mark.asyncio
-async def test_rejects_user_op_using_SELFDESTRUCT(
-    client, contracts, send_request_with_paymaster_using_opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            "CALL", contracts.self_destructor
-        ).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
-        f"'SELFDESTRUCT' during validation",
-    )
-
-
-@pytest.mark.asyncio
-async def test_rejects_user_op_using_CREATE2_after_initialization(
-    client, contracts, send_request_with_paymaster_using_opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            "CREATE2", contracts.counter
-        ).json(),
-        expected_error_message="The UserOp is using the 'CREATE2' opcode in an "
-        "unacceptable context.",
-    )
-
-
-@pytest.mark.asyncio
-async def test_rejects_user_op_using_CREATE2_without_initialization(
-    client, contracts, send_request, send_request_with_paymaster_using_opcode
-):
-    contracts.entry_point.handleOps(
-        [send_request.user_op.values()], accounts[0].address
-    )
-    send_request_with_paymaster_using_CREATE2 = (
-        send_request_with_paymaster_using_opcode("CREATE2", contracts.counter)
-    )
-    send_request.user_op.init_code = "0x"
-    send_request.paymaster_and_data = (
-        send_request_with_paymaster_using_CREATE2.user_op.paymaster_and_data
-    )
-    send_request.user_op.call_data = (
-        contracts.counter.address + contracts.counter.count.encode_input()[2:]
-    )
-    send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-
-    await client.send_user_op(
-        send_request.json(),
-        expected_error_message="The UserOp is using the 'CREATE2' opcode in an "
-        "unacceptable context.",
-    )
-
-
-@pytest.mark.asyncio
-async def test_rejects_user_op_using_GAS_not_before_external_call(
-    client, send_request_with_paymaster_using_opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode("GAS").json(),
-        expected_error_message="The UserOp is using the 'GAS' opcode during "
-        "validation, but not before the external call",
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    (
-        "CALL",
-        "CALLCODE",
-        "DELEGATECALL",
-        "STATICCALL",
-    ),
-)
-async def test_allow_user_op_using_GAS_before_some_opcodes(
-    client, contracts, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            f"{opcode}", contracts.counter
-        ).json()
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    (
-        "CALL",
-        "CALLCODE",
-        "DELEGATECALL",
-        "EXTCODEHASH",
-        "EXTCODESIZE",
-        "EXTCODECOPY",
-        "STATICCALL",
-    ),
-)
-async def test_allows_user_op_using_opcodes_with_contract_address(
-    client, contracts, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            opcode, target=contracts.counter
-        ).json()
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY"),
-)
-async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
-    client, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            opcode, target=accounts[0]
-        ).json(),
-        expected_error_message=f"The UserOp during validation accesses the code"
-        " at an address that does not contain a smart contract.",
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
-)
-async def test_rejects_user_op_using_CALL_opcodes_with_eoa(
-    client, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            opcode, target=accounts[0]
-        ).json(),
-        expected_error_message="The UserOp during validation calling an "
-        "address that does not contain a smart contract",
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
-)
-async def test_rejects_user_op_using_CALL_opcodes_with_entry_point(
-    client, contracts, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            opcode,
-            target=contracts.entry_point,
-            payload=contracts.entry_point.simulateValidation.signature[2:],
-        ).json(),
-        expected_error_message="The UserOp is calling the EntryPoint during "
-        "validation, but only 'depositTo' method is allowed",
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
-)
-async def test_accepts_user_op_using_CALL_opcodes_with_entry_point_depositFor(
-    client, contracts, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            opcode,
-            target=contracts.entry_point,
-            payload=contracts.entry_point.depositTo.signature[2:],
-        ).json(),
-    )
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize(
-    "opcode",
-    ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
-)
-async def test_accepts_user_op_using_CALL_opcodes_with_entry_point_fallback(
-    client, contracts, send_request_with_paymaster_using_opcode, opcode
-):
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(
-            opcode,
-            target=contracts.entry_point,
-        ).json(),
-    )
 
 
 @pytest.mark.asyncio
@@ -772,15 +553,15 @@ async def test_rejects_user_op_using_not_trusted_bytecode_already_in_pool(
 
 @pytest.mark.asyncio
 async def test_accepts_user_op_using_trusted_bytecode_already_in_pool(
-    client, session, contracts, send_request, send_request2
+    client, session, test_contracts, send_request, send_request2
 ):
     await client.send_user_op(send_request.json())
 
     await db.service.update_bytecode_from_address(
-        session, contracts.simple_account_factory.address, True
+        session, test_contracts.simple_account_factory.address, True
     )
     await db.service.update_bytecode_from_address(
-        session, contracts.paymaster.address, True
+        session, test_contracts.test_paymaster_accept_all.address, True
     )
     await session.commit()
 
@@ -797,28 +578,3 @@ async def test_accepts_user_op_using_not_trusted_bytecode_expired_in_pool(
         await client.send_user_op(send_request.json())
 
     await client.send_user_op(send_request2.json())
-
-
-@pytest.mark.asyncio
-async def test_adds_rejected_bytecode_to_blacklist(
-    client, send_request_with_paymaster_using_opcode
-):
-    opcode = "BLOCKHASH"
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(opcode).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
-        f"'{opcode}' during validation",
-    )
-
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(opcode).json(),
-        expected_error_message="The UserOp contains calls to smart contracts, "
-        "the bytecode of which is listed in the blacklist",
-    )
-
-    opcode = "GASLIMIT"
-    await client.send_user_op(
-        send_request_with_paymaster_using_opcode(opcode).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
-        f"'{opcode}' during validation",
-    )

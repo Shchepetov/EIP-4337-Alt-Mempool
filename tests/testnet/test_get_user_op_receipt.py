@@ -1,14 +1,15 @@
 import pytest
-from brownie import accounts
 
 import db.service
 
 
 @pytest.mark.asyncio
-async def test_returns_user_op_receipt(client, contracts, send_request):
+async def test_returns_user_op_receipt(
+    client, test_contracts, test_account, send_request
+):
     user_op_hash = await client.send_user_op(send_request.json())
-    tx = contracts.entry_point.handleOps(
-        [send_request.user_op.values()], accounts[0].address
+    tx = test_contracts.entry_point.handleOps(
+        [send_request.user_op.values()], test_account.address
     )
 
     receipt = await client.get_user_op_receipt(user_op_hash)
@@ -56,14 +57,14 @@ async def test_rejects_request_if_user_op_not_exists(client, send_request):
 
 @pytest.mark.asyncio
 async def test_rejects_request_if_user_op_deleted_with_forbidden_bytecode(
-    client, session, contracts, send_request
+    client, session, test_contracts, test_account, send_request
 ):
     user_op_hash = await client.send_user_op(send_request.json())
-    contracts.entry_point.handleOps(
-        [send_request.user_op.values()], accounts[0].address
+    test_contracts.entry_point.handleOps(
+        [send_request.user_op.values()], test_account.address
     )
     await db.service.update_bytecode_from_address(
-        session, contracts.paymaster.address, False
+        session, test_contracts.test_paymaster_accept_all.address, False
     )
     await session.commit()
 

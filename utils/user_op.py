@@ -13,7 +13,7 @@ DEFAULTS_FOR_USER_OP = {
     "call_data": "0x12345678",
     "call_gas_limit": 5000000,
     "verification_gas_limit": settings.max_verification_gas_limit,
-    "pre_verification_gas": 2000000,
+    "pre_verification_gas": 3000000,
     "max_fee_per_gas": settings.min_max_fee_per_gas,
     "max_priority_fee_per_gas": settings.min_max_priority_fee_per_gas,
     "paymaster_and_data": "0x",

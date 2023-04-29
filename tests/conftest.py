@@ -1,29 +1,18 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
-import brownie
 import eth_abi
 import pytest
 import pytest_asyncio
-from brownie import (
-    accounts,
-    chain,
-    TestAggregatedAccountFactory,
-    TestExpirePaymaster,
-    TestPaymasterAcceptAll,
-    EntryPoint,
-    SelfDestructor,
-    SimpleAccountFactory,
-    TestCounter,
-    TestToken,
-)
+from brownie import chain
 from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import db.utils
+import utils.deployments
 from db.base import engine, async_session, Base
-from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
+from tests.utils.common_classes import SendRequest
 
 
 class AppClient:
@@ -89,62 +78,6 @@ class AppClient:
         raise Exception(f'{response_json["detail"]}')
 
 
-class TestContracts:
-    def __init__(self):
-        self.counter = accounts[0].deploy(TestCounter)
-        self.entry_point = accounts[0].deploy(EntryPoint)
-        self.self_destructor = accounts[0].deploy(SelfDestructor)
-        self.token = accounts[0].deploy(TestToken)
-        self.aggregator = self.entry_point
-
-        self.aggregated_account_factory = accounts[0].deploy(
-            TestAggregatedAccountFactory,
-            self.entry_point.address,
-            self.aggregator.address,
-        )
-        self.simple_account_factory = accounts[0].deploy(
-            SimpleAccountFactory, self.entry_point.address
-        )
-
-        self.expire_paymaster = accounts[0].deploy(
-            TestExpirePaymaster, self.entry_point.address
-        )
-        self.paymaster = accounts[0].deploy(
-            TestPaymasterAcceptAll, self.entry_point.address
-        )
-
-        for address in (
-            self.expire_paymaster.address,
-            self.paymaster.address,
-        ):
-            self.entry_point.depositTo(address, {"value": "10 ether"})
-
-        chain.snapshot()
-
-
-class SendRequest:
-    def __init__(self, user_op, entry_point):
-        self.user_op = user_op
-        self.entry_point = entry_point
-
-    def json(self):
-        return {
-            "user_op": {
-                k: self._to_hex(v) for k, v in self.user_op.dict().items()
-            },
-            "entry_point": self.entry_point,
-        }
-
-    @classmethod
-    def _to_hex(cls, v) -> str:
-        if isinstance(v, str):
-            return v
-        if isinstance(v, int):
-            return hex(v)
-        if isinstance(v, bytes):
-            return "0x" + bytes.hex(v)
-
-
 @pytest.fixture(scope="session")
 def event_loop():
     loop = asyncio.new_event_loop()
@@ -158,20 +91,18 @@ async def init_models():
     await db.utils.init_models(engine)
 
 
-@pytest_asyncio.fixture(scope="session")
-def contracts() -> dict:
-    return TestContracts()
-
-
 @pytest_asyncio.fixture(autouse=True)
-async def session(init_models, contracts) -> AsyncGenerator[AsyncSession, None]:
+async def session(
+    init_models, test_contracts
+) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
-        chain.revert()
+        if utils.web3.is_connected_to_testnet():
+            chain.revert()
 
         for name, table in Base.metadata.tables.items():
             await session.execute(delete(table))
         await db.service.update_entry_point(
-            session, contracts.entry_point.address, True
+            session, test_contracts.entry_point.address, True
         )
         await session.commit()
 
@@ -187,64 +118,29 @@ async def client() -> AppClient:
 
 
 @pytest.fixture(scope="function")
-def send_request(contracts):
-    return get_send_request(contracts, 1)
+def send_request(test_contracts, test_account):
+    return SendRequest(test_contracts, test_account, 1)
 
 
 @pytest.fixture(scope="function")
-def send_request2(contracts):
-    return get_send_request(contracts, 2)
-
-
-def get_send_request(contracts, salt):
-    user_op = UserOp(**DEFAULTS_FOR_USER_OP)
-    user_op.sender = contracts.simple_account_factory.getAddress(
-        accounts[0].address, salt
-    )
-    user_op.init_code = (
-        contracts.simple_account_factory.address
-        + contracts.simple_account_factory.createAccount.encode_input(
-            accounts[0].address, salt
-        )[2:]
-    )
-    user_op.paymaster_and_data = contracts.paymaster.address
-
-    user_op.sign(accounts[0].address, contracts.entry_point)
-
-    return SendRequest(user_op, contracts.entry_point.address)
+def send_request2(test_contracts, test_account):
+    return SendRequest(test_contracts, test_account, 2)
 
 
 @pytest.fixture(scope="function")
-def send_request_with_expire_paymaster(contracts, send_request):
+def send_request_with_expire_paymaster(
+    test_contracts, test_account, send_request
+):
     def f(valid_after: int, valid_until: int):
         time_range = eth_abi.encode(
             ["uint48", "uint48"], [valid_after, valid_until]
         )
         send_request.user_op.paymaster_and_data = (
-            contracts.expire_paymaster.address + time_range.hex()
+            test_contracts.test_expire_paymaster.address + time_range.hex()
         )
-        send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-
-        return send_request
-
-    return f
-
-
-@pytest.fixture(scope="function")
-def send_request_with_paymaster_using_opcode(contracts, send_request):
-    def f(opcode: str, target: brownie.Contract = None, payload=""):
-        paymaster = accounts[0].deploy(
-            getattr(brownie, f"TestPaymaster{opcode}"),
-            contracts.entry_point.address,
+        send_request.user_op.sign(
+            test_account.address, test_contracts.entry_point
         )
-        send_request.user_op.paymaster_and_data = (
-            (paymaster.address + target.address[2:] + payload)
-            if target
-            else paymaster.address
-        )
-
-        send_request.user_op.sign(accounts[0].address, contracts.entry_point)
-        contracts.entry_point.depositTo(paymaster.address, {"value": "1 ether"})
 
         return send_request
 

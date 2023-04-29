@@ -2,7 +2,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-from brownie import accounts
 
 import db.service
 from app.config import settings
@@ -14,7 +13,7 @@ async def test_returns_user_op(client, send_request):
     user_op_hash = await client.send_user_op(request_json)
     user_op = await client.get_user_op(user_op_hash)
 
-    for (key, value) in request_json["user_op"].items():
+    for key, value in request_json["user_op"].items():
         assert user_op[key].lower() == value.lower()
 
     assert user_op["entry_point"] == send_request.entry_point
@@ -33,11 +32,11 @@ async def test_returns_expired_user_op(client, send_request):
 
 @pytest.mark.asyncio
 async def test_returns_executed_user_ops(
-    client, contracts, send_request, send_request2
+    client, test_contracts, test_account, send_request, send_request2
 ):
     user_op_hash = await client.send_user_op(send_request.json())
-    contracts.entry_point.handleOps(
-        [send_request.user_op.values()], accounts[0].address
+    test_contracts.entry_point.handleOps(
+        [send_request.user_op.values()], test_account.address
     )
 
     user_op = await client.get_user_op(user_op_hash)
@@ -46,9 +45,9 @@ async def test_returns_executed_user_ops(
 
 @pytest.mark.asyncio
 async def test_not_returns_not_existing_user_op(
-    client, contracts, send_request
+    client, test_contracts, send_request
 ):
-    send_request.user_op.fill_hash(contracts.entry_point)
+    send_request.user_op.fill_hash(test_contracts.entry_point)
     await client.get_user_op(
         send_request.user_op.hash,
         expected_error_message="The UserOp does not " "exist",
@@ -57,11 +56,11 @@ async def test_not_returns_not_existing_user_op(
 
 @pytest.mark.asyncio
 async def test_not_returns_user_op_using_prohibited_bytecodes(
-    client, session, contracts, send_request
+    client, session, test_contracts, send_request
 ):
     user_op_hash = await client.send_user_op(send_request.json())
     await db.service.update_bytecode_from_address(
-        session, contracts.paymaster.address, False
+        session, test_contracts.test_paymaster_accept_all.address, False
     )
     await session.commit()
 

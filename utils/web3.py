@@ -30,6 +30,10 @@ def is_contract(address) -> bool:
     return bool(len(bytecode))
 
 
+def is_connected_to_testnet() -> bool:
+    return brownie.chain.id in (1337, 31337)
+
+
 def get_address_from_memory(address: str) -> str:
     return web3.toChecksumAddress("0x" + address[24:])
 
@@ -81,3 +85,34 @@ def get_user_op_receipt(
 def estimate_gas(from_, to, data):
     w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
     return w3.eth.estimate_gas({"from": from_, "to": to, "data": data})
+
+
+def call_simulate_validation(user_op, entry_point) -> dict:
+    w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
+    if is_connected_to_testnet:
+        return w3.provider.make_request(
+            "eth_call",
+            [
+                {
+                    "from": ZERO_ADDRESS,
+                    "to": entry_point.address,
+                    "data": entry_point.simulateValidation.encode_input(
+                        user_op.values()
+                    ),
+                },
+            ],
+        )
+    return w3.provider.make_request(
+        "debug_traceCall",
+        [
+            {
+                "from": ZERO_ADDRESS,
+                "to": entry_point.address,
+                "data": entry_point.simulateValidation.encode_input(
+                    user_op.values()
+                ),
+            },
+            "latest",
+            {"enableMemory": True},
+        ],
+    )
