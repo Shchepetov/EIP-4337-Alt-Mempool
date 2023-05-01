@@ -67,7 +67,7 @@ async def test_not_returns_user_ops_using_prohibited_bytecodes(
     send_request2.user_op.paymaster_and_data = (
         test_contracts.test_expire_paymaster.address + 128 * "0"
     )
-    send_request2.user_op.sign(test_account.address, test_contracts.entry_point)
+    send_request2.user_op.sign(test_account, test_contracts.entry_point)
     await client.send_user_op(send_request2.json())
 
     await db.service.update_bytecode_from_address(

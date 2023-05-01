@@ -1,6 +1,4 @@
-import brownie
 import pytest
-from brownie import accounts
 
 
 @pytest.mark.asyncio
@@ -84,7 +82,7 @@ async def test_rejects_user_op_using_CREATE2_without_initialization(
         test_contracts.test_counter.address
         + test_contracts.test_counter.count.encode_input()[2:]
     )
-    send_request.user_op.sign(test_account.address, test_contracts.entry_point)
+    send_request.user_op.sign(test_account, test_contracts.entry_point)
 
     await client.send_user_op(
         send_request.json(),

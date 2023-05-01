@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 import brownie
+from brownie import web3
 from brownie.network.account import Account
 from typing import Optional
 from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
@@ -39,16 +40,17 @@ class SendRequest:
         user_op.sender = test_contracts.simple_account_factory.getAddress(
             test_account.address, salt
         )
-        user_op.init_code = (
-            test_contracts.simple_account_factory.address
-            + test_contracts.simple_account_factory.createAccount.encode_input(
+        user_op.init_code = web3.toBytes(
+            hexstr=test_contracts.simple_account_factory.address
+        ) + web3.toBytes(
+            hexstr=test_contracts.simple_account_factory.createAccount.encode_input(
                 test_account.address, salt
-            )[2:]
+            )
         )
-        user_op.paymaster_and_data = (
-            test_contracts.test_paymaster_accept_all.address
+        user_op.paymaster_and_data = web3.toBytes(
+            hexstr=test_contracts.test_paymaster_accept_all.address
         )
-        user_op.sign(test_account.address, test_contracts.entry_point)
+        user_op.sign(test_account, test_contracts.entry_point)
 
         self.user_op = user_op
 

@@ -4,9 +4,6 @@ import time
 from unittest.mock import patch
 
 import pytest
-from brownie import (
-    TestPaymasterAcceptAll,
-)
 
 import app.constants as constants
 import db.service
@@ -147,7 +144,7 @@ async def test_rejects_same_user_op_with_different_signature(
     client, send_request
 ):
     await client.send_user_op(send_request.json())
-    send_request.user_op.signature += "1234"
+    send_request.user_op.signature += b"1234"
     await client.send_user_op(
         send_request.json(),
         expected_error_message="UserOp is already in the pool",
@@ -302,12 +299,10 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
 async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     client, test_contracts, test_account, send_request
 ):
-    new_paymaster = test_account.deploy(
-        TestPaymasterAcceptAll, test_contracts.entry_point.address
+    test_contracts.test_paymaster_accept_all.withdrawTo(
+        test_account.address,
+        test_contracts.test_paymaster_accept_all.getDeposit(),
     )
-    send_request.user_op.paymaster_and_data = new_paymaster.address
-    send_request.user_op.sign(test_account.address, test_contracts.entry_point)
-
     await client.send_user_op(
         send_request.json(),
         expected_error_message="The paymaster does not have sufficient funds "
@@ -315,7 +310,7 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
     )
 
     test_contracts.entry_point.depositTo(
-        new_paymaster.address,
+        test_contracts.test_paymaster_accept_all.address,
         {
             "value": send_request.user_op.get_required_prefund(
                 with_paymaster=True
@@ -344,7 +339,7 @@ async def test_rejects_user_op_with_call_gas_limit_less_than_call_opcode_cost(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_failing_simulation(client, send_request):
-    send_request.user_op.signature = send_request.user_op.signature[:-2]
+    send_request.user_op.signature = send_request.user_op.signature[:-2] + b"12"
     await client.send_user_op(
         send_request.json(),
         expected_error_message="The simulation of the UserOp has failed",
@@ -495,7 +490,7 @@ async def test_rejects_user_op_with_prohibited_aggregator(
             test_account.address, salt
         )[2:]
     )
-    send_request.user_op.sign(test_account.address, test_contracts.entry_point)
+    send_request.user_op.sign(test_account, test_contracts.entry_point)
 
     await db.service.update_bytecode_from_address(
         session, test_contracts.aggregator.address, False

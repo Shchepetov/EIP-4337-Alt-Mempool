@@ -50,7 +50,7 @@ async def test_estimates_expired_user_op(
 
 @pytest.mark.asyncio
 async def test_not_estimates_user_op_failing_simulation(client, send_request):
-    send_request.user_op.signature = send_request.user_op.signature[:-3] + "123"
+    send_request.user_op.signature = send_request.user_op.signature[:-2] + b"12"
     await client.estimate_user_op(
         send_request.json(),
         expected_error_message="The simulation of the UserOp has failed with an"
@@ -63,7 +63,6 @@ async def test_not_estimates_user_op_from_not_supported_entry_point(
     client, send_request, test_contracts
 ):
     send_request.entry_point = test_contracts.test_counter.address
-    send_request.user_op.signature = send_request.user_op.signature[:-3] + "123"
     await client.estimate_user_op(
         send_request.json(),
         expected_error_message="The EntryPoint is not supported",

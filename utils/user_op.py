@@ -1,8 +1,10 @@
 from typing import Optional
 
 import eth_abi
-from brownie import web3
+from brownie import Contract, web3
+from eth_account.messages import encode_defunct
 from pydantic import BaseModel, Extra
+from web3 import Account
 
 from app.config import settings
 
@@ -87,13 +89,11 @@ class UserOp(BaseModel):
 
         return eth_abi.encode(types, values)
 
-    def sign(self, owner_address, entry_point):
-        self.signature = (
-            web3.eth.sign(
-                owner_address, data=entry_point.getUserOpHash(self.values())
-            ).hex()[:-2]
-            + "1c"
+    def sign(self, owner: Account, entry_point: Contract):
+        s = owner.sign_message(
+            encode_defunct(entry_point.getUserOpHash(self.values()))
         )
+        self.signature = s.signature
 
     def values(self) -> list:
         return [

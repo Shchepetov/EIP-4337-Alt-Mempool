@@ -4,7 +4,8 @@ from collections.abc import AsyncGenerator
 import eth_abi
 import pytest
 import pytest_asyncio
-from brownie import chain
+import web3
+from brownie import accounts, chain
 from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -117,6 +118,13 @@ async def client() -> AppClient:
         yield AppClient(client)
 
 
+@pytest_asyncio.fixture(scope="session")
+def test_account() -> web3.Account:
+    account = web3.Account.create()
+    accounts[0].transfer(account.address, "10 ether")
+    yield account
+
+
 @pytest.fixture(scope="function")
 def send_request(test_contracts, test_account):
     return SendRequest(test_contracts, test_account, 1)
@@ -138,9 +146,7 @@ def send_request_with_expire_paymaster(
         send_request.user_op.paymaster_and_data = (
             test_contracts.test_expire_paymaster.address + time_range.hex()
         )
-        send_request.user_op.sign(
-            test_account.address, test_contracts.entry_point
-        )
+        send_request.user_op.sign(test_account, test_contracts.entry_point)
 
         return send_request
 

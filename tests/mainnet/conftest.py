@@ -18,11 +18,6 @@ def switch_to_mainnet():
 
 
 @pytest_asyncio.fixture(scope="session")
-def test_account() -> Account:
-    yield accounts.add()
-
-
-@pytest_asyncio.fixture(scope="session")
 def test_contracts() -> Contracts:
     instance = Contracts()
     deployments_data = utils.deployments.load(network.show_active())
@@ -57,9 +52,7 @@ def send_request_with_paymaster_from_network_using_opcode(
             else test_paymaster_accept_all.address
         )
 
-        send_request.user_op.sign(
-            test_account.address, test_contracts.entry_point
-        )
+        send_request.user_op.sign(test_account, test_contracts.entry_point)
 
         return send_request
 
