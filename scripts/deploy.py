@@ -6,15 +6,7 @@ import typer
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 import brownie
-from brownie import (
-    accounts,
-    EntryPoint,
-    SelfDestructor,
-    SimpleAccountFactory,
-    TestCounter,
-    TestPaymasterAcceptAll,
-    TestToken,
-)
+from brownie import accounts, EntryPoint, SimpleAccountFactory
 
 import utils.deployments
 
@@ -22,34 +14,22 @@ cli = typer.Typer()
 
 
 @cli.command()
-def deploy_all(from_id: str):
-    selected_account = accounts.load(from_id)
+def deploy_test_contracts(from_id: str, paymaster_deposit: str = "1000 gwei"):
+    account = accounts.load(from_id)
     data = {}
 
-    entry_point = selected_account.deploy(EntryPoint)
-    data["EntryPoint"] = entry_point.address
+    entry_point = account.deploy(EntryPoint)
+    for contract_name in (
+        "EntryPoint",
+        "SelfDestructor",
+        "TestToken",
+        "TestCounter",
+    ):
+        contract = account.deploy(getattr(brownie, contract_name))
+        data[contract_name] = contract.address
 
-    self_destructor = selected_account.deploy(SelfDestructor)
-    data["SelfDestructor"] = self_destructor.address
-
-    test_token = selected_account.deploy(TestToken)
-    data["TestToken"] = test_token.address
-
-    test_counter = selected_account.deploy(TestCounter)
-    data["TestCounter"] = test_counter.address
-
-    simple_account_factory = selected_account.deploy(
-        SimpleAccountFactory, entry_point.address
-    )
-    data["SimpleAccountFactory"] = simple_account_factory.address
-
-    test_paymaster = selected_account.deploy(
-        TestPaymasterAcceptAll, entry_point.address
-    )
-    data["TestPaymasterAcceptAll"] = test_paymaster.address
-
-    for opcode in (
-        "BALANCE",
+    for paymaster_type in (
+        "AcceptAll" "BALANCE",
         "BASEFEE",
         "BLOCKHASH",
         "CALL",
@@ -70,10 +50,18 @@ def deploy_all(from_id: str):
         "STATICCALL",
         "TIMESTAMP",
     ):
-        contract_name = f"TestPaymaster{opcode}"
-        contract = selected_account.deploy(
+        contract_name = f"TestPaymaster{paymaster_type}"
+        contract = account.deploy(
             getattr(brownie, contract_name), entry_point.address
         )
+        entry_point.depositTo(
+            contract.address, {"from": account, "value": paymaster_deposit}
+        )
         data[contract_name] = contract.address
+
+    simple_account_factory = account.deploy(
+        SimpleAccountFactory, entry_point.address
+    )
+    data["SimpleAccountFactory"] = simple_account_factory.address
 
     utils.deployments.save(data, brownie.network.show_active())
