@@ -1,5 +1,6 @@
 import re
 import time
+from typing import Optional
 
 import brownie
 import eth_abi
@@ -13,43 +14,55 @@ import utils.web3
 from app.config import settings
 
 FORBIDDEN_OPCODES = (
-    "GASPRICE",
-    "GASLIMIT",
-    "DIFFICULTY",
-    "PREVRANDAO",
-    "TIMESTAMP",
+    "BALANCE",
     "BASEFEE",
     "BLOCKHASH",
-    "NUMBER",
-    "SELFBALANCE",
-    "BALANCE",
-    "ORIGIN",
-    "CREATE",
     "COINBASE",
+    "CREATE",
+    "DIFFICULTY",
+    "GASLIMIT",
+    "GASPRICE",
+    "NUMBER",
+    "ORIGIN",
+    "PREVRANDAO",
+    "SELFBALANCE",
     "SELFDESTRUCT",
+    "TIMESTAMP",
 )
 
 
 class SimulationResult:
-    def __init__(self, simulation_result_string):
+    def __init__(self, err_msg: str, trace: list[dict] = None):
+        self.pre_op_gas: int
+        self.prefund: int
+        self.sig_failed: bool
+        self.valid_after: int
+        self.valid_until: int
+        self.paymaster_context: bytes
+        self.expires_at: int
+        self.aggregator: Optional[str]
+        self.trace: Optional[int]
+        self._set_simulation_result(err_msg, trace)
+
+    def _set_simulation_result(self, err_msg: str, trace: list[dict]):
+        self.trace = trace
+
         types = [
             "(uint256,uint256,bool,uint48,uint48,bytes)",
             "(uint256,uint256)",
             "(uint256,uint256)",
             "(uint256,uint256)",
         ]
-        signature = simulation_result_string[2:10].lower()
+        signature = err_msg[2:10].lower()
         if signature == constants.VALIDATION_RESULT_WITH_AGGREGATION_SIGNATURE:
             types.append("(address,(uint256,uint256))")
         elif signature != constants.VALIDATION_RESULT_SIGNATURE:
             raise HTTPException(
                 status_code=422,
                 detail=f"The simulation of the UserOp has failed with an "
-                f"error: {simulation_result_string}",
+                f"error: {err_msg}",
             )
-        decoded = eth_abi.decode(
-            types, bytes.fromhex(simulation_result_string[10:])
-        )
+        decoded = eth_abi.decode(types, bytes.fromhex(err_msg[10:]))
         (
             self.pre_op_gas,
             self.prefund,
@@ -253,8 +266,8 @@ async def validate_before_simulation(
 
 
 def run_simulation(user_op, entry_point) -> (SimulationResult, int):
-    response = utils.web3.call_simulate_validation(user_op, entry_point)
-    return SimulationResult(response["error"]["data"])
+    error_msg, trace = utils.web3.call_simulate_validation(user_op, entry_point)
+    return SimulationResult(error_msg, trace=trace)
 
 
 async def validate_helper_contracts(session, helper_contracts) -> list[str]:
@@ -293,12 +306,14 @@ async def validate_after_simulation(
     if not getattr(simulation_result, "trace", None):
         return
 
-    (helper_contract, error_msg) = validate_called_instructions(
+    (helper_contract_index, error_msg) = validate_called_instructions(
         simulation_result.trace, entry_point, initializing=initializing
     )
     if error_msg:
-        await db.service.update_bytecode_from_address(
-            session, helper_contract, is_trusted=False
+        await db.service.update_bytecode(
+            session,
+            helper_contracts_bytecode_hashes[helper_contract_index],
+            is_trusted=False,
         )
         await session.commit()
 
@@ -375,7 +390,10 @@ def validate_called_instructions(
             target = utils.web3.get_address_from_memory(
                 instructions[i]["stack"][-2]
             )
-            if not utils.web3.is_contract(target):
+            if target == ZERO_ADDRESS or (
+                int(target, 16) > 9  # not a precompiled contract
+                and not utils.web3.is_contract(target)
+            ):
                 return (
                     helper_contract_number,
                     "The UserOp during validation calling an address that does "

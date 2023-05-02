@@ -1,9 +1,11 @@
 from dataclasses import dataclass
+from typing import Optional
 
 import brownie
 from brownie import web3
 from brownie.network.account import Account
-from typing import Optional
+
+import utils.web3
 from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
 
 
@@ -46,6 +48,9 @@ class SendRequest:
             hexstr=test_contracts.simple_account_factory.createAccount.encode_input(
                 test_account.address, salt
             )
+        )
+        user_op.max_fee_per_gas = (
+            user_op.max_priority_fee_per_gas + 2 * utils.web3.get_base_fee()
         )
         user_op.paymaster_and_data = web3.toBytes(
             hexstr=test_contracts.test_paymaster_accept_all.address

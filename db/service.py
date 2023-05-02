@@ -113,10 +113,7 @@ async def any_user_op_with_another_sender_using_bytecodes(
     return result.fetchone() is not None
 
 
-async def update_bytecode_from_address(
-    session: AsyncSession, address: str, is_trusted: bool
-):
-    hash_ = utils.web3.get_bytecode_hash(address)
+async def update_bytecode(session: AsyncSession, hash_: str, is_trusted: bool):
     bytecode = (
         await session.execute(select(Bytecode).where(Bytecode.hash == hash_))
     ).scalar()
@@ -132,6 +129,14 @@ async def update_bytecode_from_address(
             .where(UserOp.bytecodes.any(Bytecode.hash == hash_))
             .where(UserOp.tx_hash == None)
         )
+
+
+async def update_bytecode_from_address(
+    session: AsyncSession, address: str, is_trusted: bool
+):
+    return await update_bytecode(
+        session, utils.web3.get_bytecode_hash(address), is_trusted=is_trusted
+    )
 
 
 async def refresh_user_op_receipt(user_op: UserOp) -> bool:

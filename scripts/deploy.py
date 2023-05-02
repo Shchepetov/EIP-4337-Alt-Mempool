@@ -8,10 +8,11 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 import brownie
 from brownie import (
     accounts,
-    TestPaymasterAcceptAll,
-    SimpleAccountFactory,
     EntryPoint,
     SelfDestructor,
+    SimpleAccountFactory,
+    TestCounter,
+    TestPaymasterAcceptAll,
     TestToken,
 )
 
@@ -34,6 +35,9 @@ def deploy_all(from_id: str):
     test_token = selected_account.deploy(TestToken)
     data["TestToken"] = test_token.address
 
+    test_counter = selected_account.deploy(TestCounter)
+    data["TestCounter"] = test_counter.address
+
     simple_account_factory = selected_account.deploy(
         SimpleAccountFactory, entry_point.address
     )
@@ -45,25 +49,26 @@ def deploy_all(from_id: str):
     data["TestPaymasterAcceptAll"] = test_paymaster.address
 
     for opcode in (
-        "GASPRICE",
-        "GASLIMIT",
-        "DIFFICULTY",
-        "TIMESTAMP",
-        "BLOCKHASH",
-        "NUMBER",
-        "SELFBALANCE",
         "BALANCE",
-        "ORIGIN",
-        "CREATE",
-        "COINBASE",
-        "CREATE2",
+        "BASEFEE",
+        "BLOCKHASH",
         "CALL",
         "CALLCODE",
+        "CREATE",
+        "CREATE2",
         "DELEGATECALL",
-        "STATICCALL",
+        "DIFFICULTY",
+        "EXTCODECOPY",
         "EXTCODEHASH",
         "EXTCODESIZE",
-        "EXTCODECOPY",
+        "GAS",
+        "GASLIMIT",
+        "GASPRICE",
+        "NUMBER",
+        "ORIGIN",
+        "SELFBALANCE",
+        "STATICCALL",
+        "TIMESTAMP",
     ):
         contract_name = f"TestPaymaster{opcode}"
         contract = selected_account.deploy(

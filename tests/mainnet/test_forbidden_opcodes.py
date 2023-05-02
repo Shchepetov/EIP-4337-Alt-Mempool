@@ -5,18 +5,18 @@ import pytest
 @pytest.mark.parametrize(
     "opcode",
     (
-        # TODO Test 'BASEFEE' and 'PREVRANDAO' opcodes
-        "GASPRICE",
-        "GASLIMIT",
-        "DIFFICULTY",
-        "TIMESTAMP",
-        "BLOCKHASH",
-        "NUMBER",
-        "SELFBALANCE",
         "BALANCE",
-        "ORIGIN",
-        "CREATE",
+        "BASEFEE",
+        "BLOCKHASH",
         "COINBASE",
+        "CREATE",
+        "GASLIMIT",
+        "GASPRICE",
+        "NUMBER",
+        "ORIGIN",
+        "PREVRANDAO",
+        "SELFBALANCE",
+        "TIMESTAMP",
     ),
 )
 async def test_rejects_user_op_using_forbidden_opcodes(
@@ -54,38 +54,6 @@ async def test_rejects_user_op_using_CREATE2_after_initialization(
         send_request_with_paymaster_from_network_using_opcode(
             "CREATE2", test_contracts.test_counter
         ).json(),
-        expected_error_message="The UserOp is using the 'CREATE2' opcode in an "
-        "unacceptable context.",
-    )
-
-
-@pytest.mark.asyncio
-async def test_rejects_user_op_using_CREATE2_without_initialization(
-    client,
-    test_contracts,
-    send_request,
-    send_request_with_paymaster_from_network_using_opcode,
-):
-    test_contracts.entry_point.handleOps(
-        [send_request.user_op.values()], test_account.address
-    )
-    send_request_with_paymaster_using_CREATE2 = (
-        send_request_with_paymaster_from_network_using_opcode(
-            "CREATE2", test_contracts.test_counter
-        )
-    )
-    send_request.user_op.init_code = "0x"
-    send_request.paymaster_and_data = (
-        send_request_with_paymaster_using_CREATE2.user_op.paymaster_and_data
-    )
-    send_request.user_op.call_data = (
-        test_contracts.test_counter.address
-        + test_contracts.test_counter.count.encode_input()[2:]
-    )
-    send_request.user_op.sign(test_account, test_contracts.entry_point)
-
-    await client.send_user_op(
-        send_request.json(),
         expected_error_message="The UserOp is using the 'CREATE2' opcode in an "
         "unacceptable context.",
     )
@@ -157,7 +125,10 @@ async def test_allows_user_op_using_opcodes_with_contract_address(
     ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY"),
 )
 async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
-    client, send_request_with_paymaster_from_network_using_opcode, opcode
+    client,
+    test_account,
+    send_request_with_paymaster_from_network_using_opcode,
+    opcode,
 ):
     await client.send_user_op(
         send_request_with_paymaster_from_network_using_opcode(
@@ -174,7 +145,10 @@ async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
     ("CALL", "CALLCODE", "DELEGATECALL", "STATICCALL"),
 )
 async def test_rejects_user_op_using_CALL_opcodes_with_eoa(
-    client, send_request_with_paymaster_from_network_using_opcode, opcode
+    client,
+    test_account,
+    send_request_with_paymaster_from_network_using_opcode,
+    opcode,
 ):
     await client.send_user_op(
         send_request_with_paymaster_from_network_using_opcode(
@@ -259,7 +233,7 @@ async def test_adds_rejected_bytecode_to_blacklist(
 
     await client.send_user_op(
         send_request_with_paymaster_from_network_using_opcode(opcode).json(),
-        expected_error_message="The UserOp contains calls to smart test_contracts, "
+        expected_error_message="The UserOp contains calls to smart contracts, "
         "the bytecode of which is listed in the blacklist",
     )
 

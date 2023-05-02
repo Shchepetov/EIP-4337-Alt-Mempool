@@ -4,12 +4,12 @@ from collections.abc import AsyncGenerator
 import eth_abi
 import pytest
 import pytest_asyncio
-import web3
-from brownie import accounts, chain
+from brownie import chain
 from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import db.service
 import db.utils
 import utils.deployments
 from db.base import engine, async_session, Base
@@ -116,13 +116,6 @@ async def client() -> AppClient:
 
     async with AsyncClient(app=app, base_url="https://localhost") as client:
         yield AppClient(client)
-
-
-@pytest_asyncio.fixture(scope="session")
-def test_account() -> web3.Account:
-    account = web3.Account.create()
-    accounts[0].transfer(account.address, "10 ether")
-    yield account
 
 
 @pytest.fixture(scope="function")

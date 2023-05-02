@@ -1,4 +1,5 @@
 import re
+from typing import Optional
 
 import brownie
 from brownie import web3, EntryPoint, ZERO_ADDRESS
@@ -87,10 +88,12 @@ def estimate_gas(from_, to, data):
     return w3.eth.estimate_gas({"from": from_, "to": to, "data": data})
 
 
-def call_simulate_validation(user_op, entry_point) -> dict:
+def call_simulate_validation(
+    user_op, entry_point
+) -> (str, Optional[list[dict]]):
     w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
-    if is_connected_to_testnet:
-        return w3.provider.make_request(
+    if is_connected_to_testnet():
+        response = w3.provider.make_request(
             "eth_call",
             [
                 {
@@ -102,7 +105,9 @@ def call_simulate_validation(user_op, entry_point) -> dict:
                 },
             ],
         )
-    return w3.provider.make_request(
+        return response["error"]["data"], None
+
+    response = w3.provider.make_request(
         "debug_traceCall",
         [
             {
@@ -116,3 +121,4 @@ def call_simulate_validation(user_op, entry_point) -> dict:
             {"enableMemory": True},
         ],
     )
+    return response["result"]["returnValue"], response["result"]["structLogs"]

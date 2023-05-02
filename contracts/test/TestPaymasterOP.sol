@@ -35,6 +35,17 @@ contract TestPaymasterBALANCE is TestPaymasterOP {
 }
 
 /**
+ * @dev Test paymaster with _validatePaymasterUserOp using the 'BASEFEE' opcode.
+ */
+contract TestPaymasterBASEFEE is TestPaymasterOP {
+    constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {}
+
+    function _callOpcode() internal override {
+        bytes memory dummy = abi.encodePacked(block.basefee);
+    }
+}
+
+/**
  * @dev Test paymaster with _validatePaymasterUserOp using the 'BLOCKHASH' opcode.
  */
 contract TestPaymasterBLOCKHASH is TestPaymasterOP {
@@ -79,9 +90,9 @@ contract TestPaymasterCREATE2 is TestPaymasterOP {
 }
 
 /**
- * @dev Test paymaster with _validatePaymasterUserOp using the 'DIFFICULTY' opcode.
+ * @dev Test paymaster with _validatePaymasterUserOp using the 'PREVRANDAO' opcode.
  */
-contract TestPaymasterDIFFICULTY is TestPaymasterOP {
+contract TestPaymasterPREVRANDAO is TestPaymasterOP {
     constructor(IEntryPoint _entryPoint) BasePaymaster(_entryPoint) {}
 
     function _callOpcode() internal override {

@@ -1,17 +1,24 @@
 import pytest_asyncio
+import web3
 from brownie import (
-    TestAggregatedAccountFactory,
-    TestExpirePaymaster,
-    TestPaymasterAcceptAll,
     EntryPoint,
     SelfDestructor,
     SimpleAccountFactory,
+    TestAggregatedAccountFactory,
     TestCounter,
+    TestExpirePaymaster,
+    TestPaymasterAcceptAll,
     TestToken,
 )
 from brownie import accounts, chain
 
 from tests.utils.common_classes import Contracts
+
+
+@pytest_asyncio.fixture(autouse=True)
+def revert_chain(test_contracts):
+    yield
+    chain.revert()
 
 
 @pytest_asyncio.fixture(scope="session")
@@ -52,7 +59,8 @@ def test_contracts() -> Contracts:
     return instance
 
 
-@pytest_asyncio.fixture(autouse=True)
-def revert_chain(test_contracts):
-    yield
-    chain.revert()
+@pytest_asyncio.fixture(scope="session")
+def test_account() -> web3.Account:
+    account = web3.Account.create()
+    accounts[0].transfer(account.address, "10 ether")
+    yield account
