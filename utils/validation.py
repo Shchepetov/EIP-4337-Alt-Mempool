@@ -2,11 +2,11 @@ import re
 import time
 from typing import Optional
 
-import brownie
 import eth_abi
 import hexbytes
-from brownie import web3, ZERO_ADDRESS
+import web3.constants
 from fastapi import HTTPException
+from web3.eth import Contract
 
 import app.constants as constants
 import db.service
@@ -73,7 +73,7 @@ class SimulationResult:
         ) = decoded[0]
 
         self.aggregator = (
-            decoded[-1][0]
+            web3.Web3.toChecksumAddress(decoded[-1][0])
             if signature
             == constants.VALIDATION_RESULT_WITH_AGGREGATION_SIGNATURE
             else None
@@ -103,7 +103,7 @@ class SimulationResult:
 def validate_address(v):
     v = validate_hex(v)
     if v == "0x":
-        return ZERO_ADDRESS
+        return web3.constants.ADDRESS_ZERO
     if not utils.web3.is_address(v):
         raise HTTPException(
             status_code=422, detail="Must be an Ethereum address."
@@ -139,9 +139,7 @@ async def validate_user_op(
     simulation_result = run_simulation(user_op, entry_point)
     simulation_result.validate()
     if simulation_result.aggregator:
-        helper_contracts.append(
-            web3.toChecksumAddress(simulation_result.aggregator)
-        )
+        helper_contracts.append(simulation_result.aggregator)
 
     helper_contracts_bytecode_hashes = await validate_helper_contracts(
         session, helper_contracts
@@ -251,9 +249,9 @@ async def validate_before_simulation(
                 "represent a smart contract address.",
             )
 
-        if entry_point.balanceOf(
+        if entry_point.functions.balanceOf(
             paymaster_address
-        ) < user_op.get_required_prefund(with_paymaster=True):
+        ).call() < user_op.get_required_prefund(with_paymaster=True):
             raise HTTPException(
                 status_code=422,
                 detail="The paymaster does not have sufficient funds to pay "
@@ -290,7 +288,7 @@ async def validate_after_simulation(
     session,
     user_op,
     helper_contracts_bytecode_hashes,
-    entry_point: brownie.Contract,
+    entry_point: web3.eth.Contract,
     simulation_result,
     initializing: bool,
 ):
@@ -321,7 +319,7 @@ async def validate_after_simulation(
 
 
 def validate_called_instructions(
-    instructions: list[dict], entry_point: brownie.Contract, initializing: bool
+    instructions: list[dict], entry_point: web3.eth.Contract, initializing: bool
 ) -> (int, str):
     create2_can_be_called = initializing
     helper_contract_number = -1
@@ -390,7 +388,7 @@ def validate_called_instructions(
             target = utils.web3.get_address_from_memory(
                 instructions[i]["stack"][-2]
             )
-            if target == ZERO_ADDRESS or (
+            if target == web3.constants.ADDRESS_ZERO or (
                 int(target, 16) > 9  # not a precompiled contract
                 and not utils.web3.is_contract(target)
             ):

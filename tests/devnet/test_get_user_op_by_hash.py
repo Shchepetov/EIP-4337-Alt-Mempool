@@ -44,13 +44,10 @@ async def test_returns_executed_user_ops(
 
 
 @pytest.mark.asyncio
-async def test_not_returns_not_existing_user_op(
-    client, test_contracts, send_request
-):
-    send_request.user_op.fill_hash(test_contracts.entry_point)
+async def test_not_returns_not_existing_user_op(client, send_request):
     await client.get_user_op(
-        send_request.user_op.hash,
-        expected_error_message="The UserOp does not " "exist",
+        "0x".ljust(66, "0"),
+        expected_error_message="The UserOp does not exist",
     )
 
 

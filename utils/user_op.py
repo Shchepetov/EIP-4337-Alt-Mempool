@@ -1,15 +1,16 @@
 from typing import Optional
 
+import brownie
 import eth_abi
-from brownie import Contract, web3
+import web3.eth
 from eth_account.messages import encode_defunct
 from pydantic import BaseModel, Extra
-from web3 import Account
+from web3 import Account, Web3
 
 from app.config import settings
 
 DEFAULTS_FOR_USER_OP = {
-    "sender": "0x4CDbDf63ae2215eDD6B673F9DABFf789A13D4270",
+    "sender": "0x0000000000000000000000000000000000000000",
     "nonce": 0,
     "init_code": "0x",
     "call_data": "0x12345678",
@@ -54,8 +55,11 @@ class UserOp(BaseModel):
             + self.call_gas_limit
         )
 
-    def fill_hash(self, entry_point) -> None:
-        self.hash = "0x" + entry_point.getUserOpHash(self.values()).hex()
+    def fill_hash(self, entry_point: web3.eth.Contract) -> None:
+        self.hash = (
+            "0x"
+            + entry_point.functions.getUserOpHash(self.values()).call().hex()
+        )
 
     def encode(self, with_signature=True) -> bytes:
         types = [
@@ -89,7 +93,7 @@ class UserOp(BaseModel):
 
         return eth_abi.encode(types, values)
 
-    def sign(self, owner: Account, entry_point: Contract):
+    def sign(self, owner: Account, entry_point: brownie.Contract):
         s = owner.sign_message(
             encode_defunct(entry_point.getUserOpHash(self.values()))
         )
@@ -112,4 +116,4 @@ class UserOp(BaseModel):
 
     @classmethod
     def _to_bytes(cls, v):
-        return v if isinstance(v, bytes) else web3.toBytes(hexstr=v)
+        return v if isinstance(v, bytes) else Web3.toBytes(hexstr=v)

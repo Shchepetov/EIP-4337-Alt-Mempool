@@ -1,6 +1,5 @@
 from datetime import datetime
 
-from brownie import EntryPoint
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, validator
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -8,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import app.constants as constants
 import db.service
 import utils.user_op
+import utils.web3
 from app.config import settings
 from db.utils import get_session
 from utils.validation import validate_address, validate_hex, validate_user_op
@@ -93,7 +93,7 @@ async def send_user_operation(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
     await utils.validation.validate_entry_point(session, request.entry_point)
-    entry_point = EntryPoint.at(request.entry_point)
+    entry_point = utils.web3.EntryPoint(request.entry_point)
     request.user_op.fill_hash(entry_point)
     (
         simulation_result,
@@ -127,7 +127,7 @@ async def estimate_user_op(
     request: SendRequest, session: AsyncSession = Depends(get_session)
 ):
     await utils.validation.validate_entry_point(session, request.entry_point)
-    entry_point = EntryPoint.at(request.entry_point)
+    entry_point = utils.web3.EntryPoint(request.entry_point)
     simulation_result = utils.validation.run_simulation(
         request.user_op, entry_point
     )

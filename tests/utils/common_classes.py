@@ -25,37 +25,36 @@ class Contracts:
 class SendRequest:
     def __init__(
         self,
-        test_contracts: Contracts,
-        test_account: Account,
+        entry_point: brownie.Contract,
+        factory: brownie.Contract,
+        paymaster: brownie.Contract,
+        account: Account,
         salt: int,
     ):
         self.entry_point: str
         self.user_op: UserOp
-        self._set_user_op(test_contracts, test_account, salt)
+        self._set_user_op(entry_point, factory, paymaster, account, salt)
 
     def _set_user_op(
-        self, test_contracts: Contracts, test_account: Account, salt: int
+        self,
+        entry_point: brownie.Contract,
+        factory: brownie.Contract,
+        paymaster: brownie.Contract,
+        account: Account,
+        salt: int,
     ) -> None:
-        self.entry_point = test_contracts.entry_point.address
+        self.entry_point = entry_point.address
 
         user_op = UserOp(**DEFAULTS_FOR_USER_OP)
-        user_op.sender = test_contracts.simple_account_factory.getAddress(
-            test_account.address, salt
-        )
-        user_op.init_code = web3.toBytes(
-            hexstr=test_contracts.simple_account_factory.address
-        ) + web3.toBytes(
-            hexstr=test_contracts.simple_account_factory.createAccount.encode_input(
-                test_account.address, salt
-            )
+        user_op.sender = factory.getAddress(account.address, salt)
+        user_op.init_code = web3.toBytes(hexstr=factory.address) + web3.toBytes(
+            hexstr=factory.createAccount.encode_input(account.address, salt)
         )
         user_op.max_fee_per_gas = (
             user_op.max_priority_fee_per_gas + 2 * utils.web3.get_base_fee()
         )
-        user_op.paymaster_and_data = web3.toBytes(
-            hexstr=test_contracts.test_paymaster_accept_all.address
-        )
-        user_op.sign(test_account, test_contracts.entry_point)
+        user_op.paymaster_and_data = web3.toBytes(hexstr=paymaster.address)
+        user_op.sign(account, entry_point)
 
         self.user_op = user_op
 

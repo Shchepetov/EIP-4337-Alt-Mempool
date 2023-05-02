@@ -6,7 +6,7 @@ from brownie import network
 
 import app.constants as constants
 import utils.deployments
-from tests.utils.common_classes import Contracts, SendRequest
+from tests.utils.common_classes import Contracts
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -35,11 +35,6 @@ def test_contracts() -> Contracts:
 def test_account() -> web3.Account:
     account = web3.Account.create()
     yield account
-
-
-@pytest.fixture(scope="function")
-def send_request(test_contracts, test_account):
-    return SendRequest(test_contracts, test_account, 1)
 
 
 @pytest.fixture(scope="function")

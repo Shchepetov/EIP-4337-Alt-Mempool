@@ -1,17 +1,18 @@
 import asyncio
 from collections.abc import AsyncGenerator
 
+import brownie
 import eth_abi
 import pytest
 import pytest_asyncio
-from brownie import chain
 from httpx import AsyncClient
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from web3 import Web3
 
 import db.service
 import db.utils
-import utils.deployments
+import utils.web3
 from db.base import engine, async_session, Base
 from tests.utils.common_classes import SendRequest
 
@@ -97,9 +98,6 @@ async def session(
     init_models, test_contracts
 ) -> AsyncGenerator[AsyncSession, None]:
     async with async_session() as session:
-        if utils.web3.is_connected_to_testnet():
-            chain.revert()
-
         for name, table in Base.metadata.tables.items():
             await session.execute(delete(table))
         await db.service.update_entry_point(
@@ -112,6 +110,7 @@ async def session(
 
 @pytest_asyncio.fixture(scope="function")
 async def client() -> AppClient:
+    utils.web3.w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
     from app.main import app
 
     async with AsyncClient(app=app, base_url="https://localhost") as client:
@@ -120,12 +119,24 @@ async def client() -> AppClient:
 
 @pytest.fixture(scope="function")
 def send_request(test_contracts, test_account):
-    return SendRequest(test_contracts, test_account, 1)
+    return SendRequest(
+        test_contracts.entry_point,
+        test_contracts.simple_account_factory,
+        test_contracts.test_paymaster_accept_all,
+        test_account,
+        1,
+    )
 
 
 @pytest.fixture(scope="function")
 def send_request2(test_contracts, test_account):
-    return SendRequest(test_contracts, test_account, 2)
+    return SendRequest(
+        test_contracts.entry_point,
+        test_contracts.simple_account_factory,
+        test_contracts.test_paymaster_accept_all,
+        test_account,
+        2,
+    )
 
 
 @pytest.fixture(scope="function")

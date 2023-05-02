@@ -2,6 +2,7 @@ from pydantic import BaseSettings
 
 
 class Settings(BaseSettings):
+    rpc_endpoint_uri: str
     max_verification_gas_limit: int = 6_000_000
     last_user_ops_count: int = 100
     min_max_fee_per_gas: int = 1
