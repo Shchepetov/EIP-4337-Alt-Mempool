@@ -56,7 +56,7 @@ async def test_rejects_request_if_user_op_not_exists(client, send_request):
 
 
 @pytest.mark.asyncio
-async def test_rejects_request_if_user_op_deleted_with_forbidden_bytecode(
+async def test_rejects_request_if_user_op_deleted_with_prohibited_bytecode(
     client, session, test_contracts, test_account, send_request
 ):
     user_op_hash = await client.send_user_op(send_request.json())

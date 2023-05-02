@@ -87,7 +87,7 @@ async def all_trusted_bytecodes(
     return bool(len(result.all()) == len(bytecode_hashes))
 
 
-async def any_forbidden_bytecodes(
+async def any_prohibited_bytecodes(
     session: AsyncSession, bytecode_hashes: list[str]
 ) -> bool:
     result = await session.execute(

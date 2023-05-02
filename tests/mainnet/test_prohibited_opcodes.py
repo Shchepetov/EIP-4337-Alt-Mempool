@@ -19,12 +19,12 @@ import pytest
         "TIMESTAMP",
     ),
 )
-async def test_rejects_user_op_using_forbidden_opcodes(
+async def test_rejects_user_op_using_prohibited_opcodes(
     client, send_request_with_paymaster_from_network_using_opcode, opcode
 ):
     await client.send_user_op(
         send_request_with_paymaster_from_network_using_opcode(opcode).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
+        expected_error_message=f"The UserOp is using the prohibited opcode "
         f"'{opcode}' during validation",
     )
 
@@ -39,7 +39,7 @@ async def test_rejects_user_op_using_SELFDESTRUCT(
         send_request_with_paymaster_from_network_using_opcode(
             "CALL", test_contracts.self_destructor
         ).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
+        expected_error_message=f"The UserOp is using the prohibited opcode "
         f"'SELFDESTRUCT' during validation",
     )
 
@@ -122,7 +122,7 @@ async def test_allows_user_op_using_opcodes_with_contract_address(
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "opcode",
-    ("EXTCODEHASH", "EXTCODESIZE", "EXTCODECOPY"),
+    ("EXTCODECOPY", "EXTCODEHASH", "EXTCODESIZE"),
 )
 async def test_rejects_user_op_using_EXTCODE_opcodes_with_eoa(
     client,
@@ -227,7 +227,7 @@ async def test_adds_rejected_bytecode_to_blacklist(
     opcode = "BLOCKHASH"
     await client.send_user_op(
         send_request_with_paymaster_from_network_using_opcode(opcode).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
+        expected_error_message=f"The UserOp is using the prohibited opcode "
         f"'{opcode}' during validation",
     )
 
@@ -240,6 +240,6 @@ async def test_adds_rejected_bytecode_to_blacklist(
     opcode = "GASLIMIT"
     await client.send_user_op(
         send_request_with_paymaster_from_network_using_opcode(opcode).json(),
-        expected_error_message=f"The UserOp is using the forbidden opcode "
+        expected_error_message=f"The UserOp is using the prohibited opcode "
         f"'{opcode}' during validation",
     )

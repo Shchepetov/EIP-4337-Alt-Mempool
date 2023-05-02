@@ -13,7 +13,7 @@ import db.service
 import utils.web3
 from app.config import settings
 
-FORBIDDEN_OPCODES = (
+PROHIBITED_OPCODES = (
     "BALANCE",
     "BASEFEE",
     "BLOCKHASH",
@@ -274,7 +274,7 @@ async def validate_helper_contracts(session, helper_contracts) -> list[str]:
     helper_contracts_bytecode_hashes = [
         utils.web3.get_bytecode_hash(address) for address in helper_contracts
     ]
-    if await db.service.any_forbidden_bytecodes(
+    if await db.service.any_prohibited_bytecodes(
         session, helper_contracts_bytecode_hashes
     ):
         raise HTTPException(
@@ -332,10 +332,10 @@ def validate_called_instructions(
                 helper_contract_number += 1
             continue
 
-        if opcode in FORBIDDEN_OPCODES:
+        if opcode in PROHIBITED_OPCODES:
             return (
                 helper_contract_number,
-                f"The UserOp is using the forbidden opcode '{opcode}' during "
+                f"The UserOp is using the prohibited opcode '{opcode}' during "
                 f"validation.",
             )
 
