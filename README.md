@@ -43,7 +43,7 @@ brownie pm install OpenZeppelin/openzeppelin-contracts@4.8.2 && brownie pm insta
 ```shell
 rm -r build/contracts/*.json && brownie compile
 ```
-## Initialize DB
+## Initialize database
 1. Run the PostgreSQL service:
 ```shell
 service postgresql start && sudo -u postgres createdb mydb
