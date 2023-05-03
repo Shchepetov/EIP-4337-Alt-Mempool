@@ -1,16 +1,11 @@
 import asyncio
-import os
-import sys
 
 import typer
 import uvicorn
 
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
 import db.service
 import db.utils
 from app.config import settings
-from app.main import app
 
 cli = typer.Typer()
 
@@ -41,8 +36,8 @@ async def update_entry_point(address: str, is_supported: bool):
 
 
 @cli.command()
-def runserver():
-    uvicorn.run(app, host="0.0.0.0", port=8545)
+def runserver(workers: int = 8):
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8545, workers=workers)
 
 
 if __name__ == "__main__":
