@@ -1,8 +1,8 @@
 # EIP-4337 Alt Mempool
 
-This project implements the protocol described in
+This project implements the RPC service based on the protocol described in
 [EIP-4337](https://eips.ethereum.org/EIPS/eip-4337), with several 
-distinctive features that set it apart from the original protocol:
+distinctive features that set it apart from the original workflow:
 
 ⛓️ **White list of auxiliary smart contract bytecodes** - UserOps using Factory,
 Account or Paymaster, whose bytecode is on the white list are added to the
@@ -14,9 +14,9 @@ using a special command.
 Account, or Paymaster, whose bytecode is on the blacklist, are rejected.
 Smart contract bytecode can be added to the blacklist manually using a
 special command or the bytecode is added automatically during UserOp
-verification when added to the mempool. Adding bytecode to the blacklist
-removes all UserOps that have already been added to the mempool if the
-bytecode used in them is added to the blacklist.
+verification when added to the mempool. When a bytecode is added to the
+blacklist, any UserOps using that bytecode which have already been added to
+the mempool will be removed.
 
 ⛓️ **Zero tolerance** - Within the pool, only one UserOp that uses the same
 bytecode, not on the white list, can be present simultaneously. The stake
