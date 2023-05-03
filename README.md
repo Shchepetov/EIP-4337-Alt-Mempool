@@ -58,6 +58,10 @@ python3 manage.py initialize-db
 ```
 ## Run the RPC client
 
+1. Set the `RPC_ENDPOINT_URI` environment variable to the external entry point
+of the RPC API node.  
+> ⚠️ The node must support the `debug_traceCall` method.
+2. Run the mempool service
 ```shell
 python3 manage.py runserver --workers=%NUMBER_OF_WORKERS%
 ```
