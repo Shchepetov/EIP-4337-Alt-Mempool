@@ -118,7 +118,6 @@ async def send_user_operation(
         session, user_op, helper_contracts_bytecode_hashes
     )
 
-    await session.commit()
     return request.user_op.hash
 
 

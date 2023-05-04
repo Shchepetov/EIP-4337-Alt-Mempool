@@ -313,7 +313,6 @@ async def validate_after_simulation(
             helper_contracts_bytecode_hashes[helper_contract_index],
             is_trusted=False,
         )
-        await session.commit()
 
         raise HTTPException(status_code=422, detail=error_msg)
 

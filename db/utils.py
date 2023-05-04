@@ -31,3 +31,4 @@ async def create_and_init(db_name):
 async def get_session() -> AsyncSession:
     async with async_session() as session:
         yield session
+        await session.commit()
