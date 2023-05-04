@@ -18,9 +18,9 @@ async def test_accepts_user_op(client, send_request):
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_from_not_supported_entry_point(
-    client, send_request, test_contracts
+    client, send_request, contracts
 ):
-    send_request.entry_point = test_contracts.test_counter.address
+    send_request.entry_point = contracts.test_counter.address
     await client.send_user_op(
         send_request.json(),
         expected_error_message="The EntryPoint is not supported",
@@ -168,9 +168,9 @@ async def test_replaces_user_op_with_same_sender(client, send_request):
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_sender_and_init_code(
-    client, test_account, send_request
+    client, signer, send_request
 ):
-    eoa_address = test_account.address
+    eoa_address = signer.address
     send_request.user_op.sender = eoa_address
     send_request.user_op.init_code = eoa_address
     await client.send_user_op(
@@ -279,9 +279,9 @@ async def test_rejects_user_op_with_pre_verification_gas_less_than_calldata_gas(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_without_contract_address_in_paymaster(
-    client, test_contracts, test_account, send_request
+    client, contracts, signer, send_request
 ):
-    eoa_address = test_account.address
+    eoa_address = signer.address
     send_request.user_op.paymaster_and_data = eoa_address
     await client.send_user_op(
         send_request.json(),
@@ -290,18 +290,18 @@ async def test_rejects_user_op_without_contract_address_in_paymaster(
     )
 
     send_request.user_op.paymaster_and_data = (
-        test_contracts.test_paymaster_accept_all.address
+        contracts.test_paymaster_accept_all.address
     )
     await client.send_user_op(send_request.json())
 
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
-    client, test_contracts, test_account, send_request
+    client, contracts, signer, send_request
 ):
-    test_contracts.test_paymaster_accept_all.withdrawTo(
-        test_account.address,
-        test_contracts.test_paymaster_accept_all.getDeposit(),
+    contracts.test_paymaster_accept_all.withdrawTo(
+        signer.address,
+        contracts.test_paymaster_accept_all.getDeposit(),
     )
     await client.send_user_op(
         send_request.json(),
@@ -309,8 +309,8 @@ async def test_rejects_user_op_with_paymaster_that_have_not_enough_deposit(
         "to pay for the UserOp",
     )
 
-    test_contracts.entry_point.depositTo(
-        test_contracts.test_paymaster_accept_all.address,
+    contracts.entry_point.depositTo(
+        contracts.test_paymaster_accept_all.address,
         {
             "value": send_request.user_op.get_required_prefund(
                 with_paymaster=True
@@ -446,10 +446,10 @@ async def test_saves_expiry_time_equal_lifetime_period_end_in_user_op(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_prohibited_factory(
-    client, session, test_contracts, send_request
+    client, session, contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, test_contracts.simple_account_factory.address, False
+        session, contracts.simple_account_factory.address, False
     )
     await session.commit()
     await client.send_user_op(
@@ -461,10 +461,10 @@ async def test_rejects_user_op_with_prohibited_factory(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_prohibited_paymaster(
-    client, session, test_contracts, send_request
+    client, session, contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_paymaster_accept_all.address, False
+        session, contracts.test_paymaster_accept_all.address, False
     )
     await session.commit()
     await client.send_user_op(
@@ -476,24 +476,22 @@ async def test_rejects_user_op_with_prohibited_paymaster(
 
 @pytest.mark.asyncio
 async def test_rejects_user_op_with_prohibited_aggregator(
-    client, session, test_contracts, test_account, send_request
+    client, session, contracts, signer, send_request
 ):
     salt = 1
     send_request.user_op.sender = (
-        test_contracts.aggregated_account_factory.getAddress(
-            test_account.address, salt
-        )
+        contracts.aggregated_account_factory.getAddress(signer.address, salt)
     )
     send_request.user_op.init_code = (
-        test_contracts.aggregated_account_factory.address
-        + test_contracts.aggregated_account_factory.createAccount.encode_input(
-            test_account.address, salt
+        contracts.aggregated_account_factory.address
+        + contracts.aggregated_account_factory.createAccount.encode_input(
+            signer.address, salt
         )[2:]
     )
-    send_request.user_op.sign(test_account, test_contracts.entry_point)
+    send_request.user_op.sign(signer, contracts.entry_point)
 
     await db.service.update_bytecode_from_address(
-        session, test_contracts.aggregator.address, False
+        session, contracts.aggregator.address, False
     )
     await session.commit()
     await client.send_user_op(
@@ -505,10 +503,10 @@ async def test_rejects_user_op_with_prohibited_aggregator(
 
 @pytest.mark.asyncio
 async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
-    client, session, test_contracts, send_request
+    client, session, contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, test_contracts.simple_account_factory.address, True
+        session, contracts.simple_account_factory.address, True
     )
     await session.commit()
 
@@ -519,13 +517,13 @@ async def test_marks_user_op_not_trusted_if_any_bytecode_is_not_trusted(
 
 @pytest.mark.asyncio
 async def test_marks_user_op_trusted_if_all_bytecodes_are_trusted(
-    client, session, test_contracts, send_request
+    client, session, contracts, send_request
 ):
     await db.service.update_bytecode_from_address(
-        session, test_contracts.simple_account_factory.address, True
+        session, contracts.simple_account_factory.address, True
     )
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_paymaster_accept_all.address, True
+        session, contracts.test_paymaster_accept_all.address, True
     )
     await session.commit()
 
@@ -548,15 +546,15 @@ async def test_rejects_user_op_using_not_trusted_bytecode_already_in_pool(
 
 @pytest.mark.asyncio
 async def test_accepts_user_op_using_trusted_bytecode_already_in_pool(
-    client, session, test_contracts, send_request, send_request2
+    client, session, contracts, send_request, send_request2
 ):
     await client.send_user_op(send_request.json())
 
     await db.service.update_bytecode_from_address(
-        session, test_contracts.simple_account_factory.address, True
+        session, contracts.simple_account_factory.address, True
     )
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_paymaster_accept_all.address, True
+        session, contracts.test_paymaster_accept_all.address, True
     )
     await session.commit()
 

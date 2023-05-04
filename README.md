@@ -27,6 +27,7 @@ check described in EIP-4337 is not performed at the same time.
 ```shell
 apt-get update && apt-get install -y sudo gnupg2 software-properties-common nodejs npm postgresql postgresql-contrib gcc python3-dev python3-pip
 ```
+
 ```shell
 npm install -g ganache-cli && npm install -g solc
 ```

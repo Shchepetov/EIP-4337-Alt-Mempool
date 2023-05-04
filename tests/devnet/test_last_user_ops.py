@@ -9,16 +9,16 @@ from app.config import settings
 
 
 @pytest_asyncio.fixture(scope="function")
-async def trust_contracts(session, test_contracts):
+async def trust_contracts(session, contracts):
     await db.service.update_bytecode_from_address(
-        session, test_contracts.simple_account_factory.address, True
+        session, contracts.simple_account_factory.address, True
     )
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_paymaster_accept_all.address, True
+        session, contracts.test_paymaster_accept_all.address, True
     )
     await session.commit()
 
-    return test_contracts
+    return contracts
 
 
 @pytest.mark.asyncio
@@ -56,8 +56,8 @@ async def test_not_returns_expired_user_ops(
 async def test_not_returns_user_ops_using_prohibited_bytecodes(
     client,
     session,
-    test_contracts,
-    test_account,
+    contracts,
+    signer,
     send_request,
     send_request2,
     trust_contracts,
@@ -65,13 +65,13 @@ async def test_not_returns_user_ops_using_prohibited_bytecodes(
     user_op_hash = await client.send_user_op(send_request.json())
 
     send_request2.user_op.paymaster_and_data = (
-        test_contracts.test_expire_paymaster.address + 128 * "0"
+        contracts.test_expire_paymaster.address + 128 * "0"
     )
-    send_request2.user_op.sign(test_account, test_contracts.entry_point)
+    send_request2.user_op.sign(signer, contracts.entry_point)
     await client.send_user_op(send_request2.json())
 
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_expire_paymaster.address, False
+        session, contracts.test_expire_paymaster.address, False
     )
     await session.commit()
 
@@ -82,11 +82,11 @@ async def test_not_returns_user_ops_using_prohibited_bytecodes(
 
 @pytest.mark.asyncio
 async def test_not_returns_executed_user_ops(
-    client, test_contracts, test_account, send_request, send_request2
+    client, contracts, signer, send_request, send_request2
 ):
     await client.send_user_op(send_request.json())
-    test_contracts.entry_point.handleOps(
-        [send_request.user_op.values()], test_account.address
+    contracts.entry_point.handleOps(
+        [send_request.user_op.values()], signer.address
     )
 
     user_ops = await client.last_user_ops()

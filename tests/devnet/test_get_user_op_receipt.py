@@ -4,12 +4,10 @@ import db.service
 
 
 @pytest.mark.asyncio
-async def test_returns_user_op_receipt(
-    client, test_contracts, test_account, send_request
-):
+async def test_returns_user_op_receipt(client, contracts, signer, send_request):
     user_op_hash = await client.send_user_op(send_request.json())
-    tx = test_contracts.entry_point.handleOps(
-        [send_request.user_op.values()], test_account.address
+    tx = contracts.entry_point.handleOps(
+        [send_request.user_op.values()], signer.address
     )
 
     receipt = await client.get_user_op_receipt(user_op_hash)
@@ -57,14 +55,14 @@ async def test_rejects_request_if_user_op_not_exists(client, send_request):
 
 @pytest.mark.asyncio
 async def test_rejects_request_if_user_op_deleted_with_prohibited_bytecode(
-    client, session, test_contracts, test_account, send_request
+    client, session, contracts, signer, send_request
 ):
     user_op_hash = await client.send_user_op(send_request.json())
-    test_contracts.entry_point.handleOps(
-        [send_request.user_op.values()], test_account.address
+    contracts.entry_point.handleOps(
+        [send_request.user_op.values()], signer.address
     )
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_paymaster_accept_all.address, False
+        session, contracts.test_paymaster_accept_all.address, False
     )
     await session.commit()
 

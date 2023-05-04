@@ -8,13 +8,13 @@ class Settings(BaseSettings):
     min_max_fee_per_gas: int = 1
     min_max_priority_fee_per_gas: int = 1
     user_op_lifetime: int = 1800
-    environment: str = "PRODUCT"
+    environment: str = "APP"
     db_host: str = "localhost"
     db_user: str = ""
     db_password: str = ""
     db_url_base = "postgresql+asyncpg"
-    app_db_name = "app"
-    test_db_name = "app_test"
+    app_db_name = "mempool_app"
+    test_db_name = "mempool_test"
 
     def get_db_url(self):
         return f"{self.db_url_base}://{self.db_user}:{self.db_password}@{self.db_host}"

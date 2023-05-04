@@ -16,13 +16,13 @@ from tests.utils.common_classes import Contracts
 
 
 @pytest_asyncio.fixture(autouse=True)
-def revert_chain(test_contracts):
+def revert_chain(contracts):
     yield
     chain.revert()
 
 
 @pytest_asyncio.fixture(scope="session")
-def test_contracts() -> Contracts:
+def contracts() -> Contracts:
     deployer = accounts[0]
 
     instance = Contracts()
@@ -60,7 +60,7 @@ def test_contracts() -> Contracts:
 
 
 @pytest_asyncio.fixture(scope="session")
-def test_account() -> web3.Account:
+def signer() -> web3.Account:
     account = web3.Account.create()
     accounts[0].transfer(account.address, "10 ether")
     yield account

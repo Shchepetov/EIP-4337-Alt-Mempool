@@ -6,11 +6,11 @@ import utils.web3
 
 
 @pytest.mark.asyncio
-async def test_estimates_user_op(client, test_contracts, send_request):
+async def test_estimates_user_op(client, contracts, send_request):
     user_op_hash = await client.send_user_op(send_request.json())
     user_op = await client.get_user_op(user_op_hash)
     call_gas_limit = utils.web3.estimate_gas(
-        from_=test_contracts.entry_point.address,
+        from_=contracts.entry_point.address,
         to=send_request.user_op.sender,
         data=send_request.user_op.call_data,
     )
@@ -60,9 +60,9 @@ async def test_not_estimates_user_op_failing_simulation(client, send_request):
 
 @pytest.mark.asyncio
 async def test_not_estimates_user_op_from_not_supported_entry_point(
-    client, send_request, test_contracts
+    client, send_request, contracts
 ):
-    send_request.entry_point = test_contracts.test_counter.address
+    send_request.entry_point = contracts.test_counter.address
     await client.estimate_user_op(
         send_request.json(),
         expected_error_message="The EntryPoint is not supported",

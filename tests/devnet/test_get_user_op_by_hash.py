@@ -32,11 +32,11 @@ async def test_returns_expired_user_op(client, send_request):
 
 @pytest.mark.asyncio
 async def test_returns_executed_user_ops(
-    client, test_contracts, test_account, send_request, send_request2
+    client, contracts, signer, send_request, send_request2
 ):
     user_op_hash = await client.send_user_op(send_request.json())
-    test_contracts.entry_point.handleOps(
-        [send_request.user_op.values()], test_account.address
+    contracts.entry_point.handleOps(
+        [send_request.user_op.values()], signer.address
     )
 
     user_op = await client.get_user_op(user_op_hash)
@@ -53,11 +53,11 @@ async def test_not_returns_not_existing_user_op(client, send_request):
 
 @pytest.mark.asyncio
 async def test_not_returns_user_op_using_prohibited_bytecodes(
-    client, session, test_contracts, send_request
+    client, session, contracts, send_request
 ):
     user_op_hash = await client.send_user_op(send_request.json())
     await db.service.update_bytecode_from_address(
-        session, test_contracts.test_paymaster_accept_all.address, False
+        session, contracts.test_paymaster_accept_all.address, False
     )
     await session.commit()
 
