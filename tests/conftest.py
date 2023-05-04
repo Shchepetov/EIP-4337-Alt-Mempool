@@ -40,6 +40,7 @@ async def session(init_models, contracts) -> AsyncGenerator[AsyncSession, None]:
         for name, table in Base.metadata.tables.items():
             await session.execute(delete(table))
         await db.service.update_entry_point(
+            session, contracts.entry_point.address, True
         )
         await session.commit()
 

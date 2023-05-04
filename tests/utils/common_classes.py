@@ -6,7 +6,37 @@ from brownie import web3
 from brownie.network.account import Account
 
 import utils.web3
+from utils.client import AppClient
 from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
+
+
+class TestClient(AppClient):
+    async def _make_request(
+        self,
+        method: str,
+        json: dict,
+        expected_error_message=None,
+    ):
+        response = await self.client.post(f"/api/{method}", json=json)
+        response_json = response.json()
+
+        if response.status_code == 200:
+            if expected_error_message is not None:
+                raise Exception(
+                    f'Expected error message "{expected_error_message}", but '
+                    f"response code is 200"
+                )
+            return response_json
+
+        if expected_error_message is not None:
+            if expected_error_message not in response_json["detail"]:
+                raise Exception(
+                    f'Expected error message "{expected_error_message}", but '
+                    f'got "{response_json["detail"]}"'
+                )
+            return response_json
+
+        raise Exception(f'{response_json["detail"]}')
 
 
 @dataclass
