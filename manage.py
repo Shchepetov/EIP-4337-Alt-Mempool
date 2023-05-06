@@ -6,6 +6,7 @@ import uvicorn
 import db.service
 import db.utils
 from app.config import settings
+from db.base import async_session
 
 cli = typer.Typer()
 
@@ -18,26 +19,34 @@ def initialize_db():
 
 
 @cli.command()
-async def update_bytecode(address: str, is_trusted: bool):
-    session = await db.utils.get_session()
-    await db.service.update_bytecode_from_address(
-        session, address, is_trusted=is_trusted
-    )
-    await session.commit()
-
-
-@cli.command()
-async def update_entry_point(address: str, is_supported: bool):
-    session = await db.utils.get_session()
-    await db.service.update_entry_point(
-        session, address, is_supported=is_supported
-    )
-    await session.commit()
-
-
-@cli.command()
 def runserver(workers: int = 8):
     uvicorn.run("app.main:app", host="0.0.0.0", port=8545, workers=workers)
+
+
+@cli.command()
+def update_bytecode_from_address(address: str, is_trusted: bool):
+    asyncio.run(_update_bytecode_from_address(address, is_trusted))
+
+
+@cli.command()
+def update_entry_point(address: str, is_supported: bool):
+    asyncio.run(_update_entry_point(address, is_supported))
+
+
+async def _update_bytecode_from_address(address: str, is_trusted: bool):
+    async with async_session() as session:
+        await db.service.update_bytecode_from_address(
+            session, address, is_trusted=is_trusted
+        )
+        await session.commit()
+
+
+async def _update_entry_point(address: str, is_supported: bool):
+    async with async_session() as session:
+        await db.service.update_entry_point(
+            session, address, is_supported=is_supported
+        )
+        await session.commit()
 
 
 if __name__ == "__main__":
