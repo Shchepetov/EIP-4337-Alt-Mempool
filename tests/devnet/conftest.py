@@ -12,7 +12,7 @@ from brownie import (
 )
 from brownie import accounts, chain
 
-from tests.utils.common_classes import Contracts
+from tests.utils.common_classes import TestContracts
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -22,10 +22,10 @@ def revert_chain(contracts):
 
 
 @pytest_asyncio.fixture(scope="session")
-def contracts() -> Contracts:
+def contracts() -> TestContracts:
     deployer = accounts[0]
 
-    instance = Contracts()
+    instance = TestContracts()
     instance.test_counter = deployer.deploy(TestCounter)
     instance.entry_point = deployer.deploy(EntryPoint)
     instance.self_destructor = deployer.deploy(SelfDestructor)

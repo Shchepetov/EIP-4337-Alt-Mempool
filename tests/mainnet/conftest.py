@@ -6,7 +6,7 @@ from brownie import network
 
 import app.constants as constants
 import utils.deployments
-from tests.utils.common_classes import Contracts
+from tests.utils.common_classes import TestContracts
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -17,8 +17,8 @@ def switch_to_mainnet():
 
 
 @pytest_asyncio.fixture(scope="session")
-def contracts() -> Contracts:
-    instance = Contracts()
+def contracts() -> TestContracts:
+    instance = TestContracts()
     deployments_data = utils.deployments.load(network.show_active())
     for contract_name, address in deployments_data.items():
         contract = getattr(brownie, contract_name)

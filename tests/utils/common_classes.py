@@ -6,7 +6,7 @@ from brownie import web3
 from brownie.network.account import Account
 
 import utils.web3
-from utils.client import AppClient
+from utils.client import AppClient, SendRequest
 from utils.user_op import UserOp, DEFAULTS_FOR_USER_OP
 
 
@@ -17,7 +17,7 @@ class TestClient(AppClient):
         json: dict,
         expected_error_message=None,
     ):
-        response = await self.client.post(f"/api/{method}", json=json)
+        response = await self.client.post(f"{method}", json=json)
         response_json = response.json()
 
         if response.status_code == 200:
@@ -40,7 +40,7 @@ class TestClient(AppClient):
 
 
 @dataclass
-class Contracts:
+class TestContracts:
     entry_point: Optional[brownie.Contract] = None
     simple_account_factory: Optional[brownie.Contract] = None
     aggregated_account_factory: Optional[brownie.Contract] = None
@@ -52,7 +52,7 @@ class Contracts:
     aggregator: Optional[brownie.Contract] = None
 
 
-class SendRequest:
+class TestSendRequest(SendRequest):
     def __init__(
         self,
         entry_point: brownie.Contract,

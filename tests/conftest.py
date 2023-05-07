@@ -18,7 +18,7 @@ import db.service
 import db.utils
 import utils.web3
 from db.base import engine, async_session, Base
-from tests.utils.common_classes import TestClient, SendRequest
+from tests.utils.common_classes import TestClient, TestSendRequest
 
 
 @pytest.fixture(scope="session")
@@ -52,13 +52,15 @@ async def client() -> TestClient:
     utils.web3.w3 = Web3(Web3.HTTPProvider(brownie.web3.provider.endpoint_uri))
     from app.main import app
 
-    async with AsyncClient(app=app, base_url="https://localhost") as client:
+    async with AsyncClient(
+        app=app, base_url="https://localhost/api/"
+    ) as client:
         yield TestClient(client)
 
 
 @pytest.fixture(scope="function")
 def send_request(contracts, signer):
-    return SendRequest(
+    return TestSendRequest(
         contracts.entry_point,
         contracts.simple_account_factory,
         contracts.test_paymaster_accept_all,
@@ -69,7 +71,7 @@ def send_request(contracts, signer):
 
 @pytest.fixture(scope="function")
 def send_request2(contracts, signer):
-    return SendRequest(
+    return TestSendRequest(
         contracts.entry_point,
         contracts.simple_account_factory,
         contracts.test_paymaster_accept_all,
