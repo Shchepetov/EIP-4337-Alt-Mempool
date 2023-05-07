@@ -22,7 +22,32 @@ the mempool will be removed.
 bytecode, not on the white list, can be present simultaneously. The stake
 check described in EIP-4337 is not performed at the same time.
 
-## Prerequisites
+### Supported methods:
+- `eth_sendUserOperation`
+- `eth_estimateUserOperationGas`
+- `eth_getUserOperationByHash`
+- `eth_getUserOperationReceipt`
+- `eth_supportedEntryPoints`
+- `eth_lastUserOperations`
+
+## Try out the implemented mempool on the Gnosis.
+You can use the mempool with the entry point located at 
+http://shchepetov.xyz/api/:
+- Network: **[Gnosis](https://www.gnosis.io)**
+- UserOp lifetime: **30 minutes**
+- Allowed EntryPoints: **[0xf5bF2a0441E28034B03B642C19787BB505c5fFc1](https://gnosisscan.io/address/0xf5bF2a0441E28034B03B642C19787BB505c5fFc1)**  
+- Whitelisted Factory contracts byte-code: **[SimpleAcountFactory](https://gnosisscan.io/address/0xc51Bd464939c4309E54Ec185Ad0c54B951BE649F)**  
+- Whitelisted Paymaster contracts byte-code: **[DepositPaymaster](https://gnosisscan.io/address/0xabAD2F5cB4ae44E158405292b43338ebF0d22214)**
+
+The repository contains a simple client application `./client.py` for convenient
+use of the remote mempool, which allows you to call all supported mempool 
+methods.  
+_To learn more about how to call these methods on the remote mempool, run the 
+following command: `python3 client.py --help`._
+
+
+## Run your own mempool
+### Prerequisites
 
 ```shell
 apt-get update && apt-get install -y sudo gnupg2 software-properties-common nodejs npm postgresql postgresql-contrib gcc python3-dev python3-pip
@@ -44,7 +69,7 @@ brownie pm install OpenZeppelin/openzeppelin-contracts@4.8.2 && brownie pm insta
 ```shell
 rm -r build/contracts/*.json && brownie compile
 ```
-## Initialize database
+### Initialize database
 1. Run the PostgreSQL service:
 ```shell
 service postgresql start && sudo -u postgres createdb mydb
@@ -57,7 +82,7 @@ service postgresql start && sudo -u postgres createdb mydb
 ```shell
 python3 manage.py initialize-db
 ```
-## Run the RPC client
+### Run the RPC server
 
 1. Set the `RPC_ENDPOINT_URI` environment variable to the external entry point
 of the RPC API node.  
@@ -68,3 +93,4 @@ python3 manage.py runserver --workers=%NUMBER_OF_WORKERS%
 ```
 _To get additional information about mempool administration capabilities,
 execute the following command: ```python3 manage.py --help```_
+
