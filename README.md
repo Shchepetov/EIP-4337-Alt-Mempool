@@ -30,7 +30,7 @@ check described in EIP-4337 is not performed at the same time.
 - `eth_supportedEntryPoints`
 - `eth_lastUserOperations`
 
-## Try out the implemented mempool on the Gnosis.
+## Try out the implemented mempool on the Gnosis
 You can use the mempool with the entry point located at 
 http://shchepetov.xyz/api/:
 - Network: **[Gnosis](https://www.gnosis.io)**
