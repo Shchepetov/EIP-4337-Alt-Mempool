@@ -36,8 +36,8 @@ http://shchepetov.xyz/api/:
 - Network: **[Gnosis](https://www.gnosis.io)**
 - UserOp lifetime: **30 minutes**
 - maxVerificationGasLimit: **200 000**
-- Minimum maxFeePerGas: **1**
-- Minimum maxPriorityFeePerGas: **1**
+- Minimum maxFeePerGas: **1** Gwei
+- Minimum maxPriorityFeePerGas: **1** Gwei
 - Allowed EntryPoints: **[0xf5bF2a0441E28034B03B642C19787BB505c5fFc1](https://gnosisscan.io/address/0xf5bF2a0441E28034B03B642C19787BB505c5fFc1)**  
 - Whitelisted Factory contracts byte-code: **[SimpleAcountFactory](https://gnosisscan.io/address/0xc51Bd464939c4309E54Ec185Ad0c54B951BE649F)**  
 - Whitelisted Paymaster contracts byte-code: **[DepositPaymaster](https://gnosisscan.io/address/0xabAD2F5cB4ae44E158405292b43338ebF0d22214)**
