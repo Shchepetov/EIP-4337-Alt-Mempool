@@ -14,7 +14,7 @@ cli = typer.Typer()
 
 
 @cli.command()
-def deploy_test_contracts(from_id: str, paymaster_deposit: str = "1000 gwei"):
+def deploy_test_contracts(from_id: str, paymaster_deposit: str = "1000000 gwei"):
     account = accounts.load(from_id)
     data = {}
 

@@ -49,10 +49,14 @@ class UserOp(BaseModel):
         )
 
     def get_required_prefund(self, with_paymaster=False):
-        return self.max_fee_per_gas * (
-            self.pre_verification_gas
-            + self.verification_gas_limit * (3 if with_paymaster else 1)
-            + self.call_gas_limit
+        return (
+            self.max_fee_per_gas
+            * (
+                self.pre_verification_gas
+                + self.verification_gas_limit * (3 if with_paymaster else 1)
+                + self.call_gas_limit
+            )
+            * 1_000_000_000
         )
 
     def fill_hash(self, entry_point: web3.eth.Contract) -> None:
