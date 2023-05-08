@@ -14,9 +14,9 @@ DEFAULTS_FOR_USER_OP = {
     "nonce": 0,
     "init_code": "0x",
     "call_data": "0x12345678",
-    "call_gas_limit": 5000000,
+    "call_gas_limit": 100000,
     "verification_gas_limit": settings.max_verification_gas_limit,
-    "pre_verification_gas": 3000000,
+    "pre_verification_gas": 10000,
     "max_fee_per_gas": settings.min_max_fee_per_gas,
     "max_priority_fee_per_gas": settings.min_max_priority_fee_per_gas,
     "paymaster_and_data": "0x",
@@ -30,7 +30,7 @@ class UserOp(BaseModel):
     init_code: bytes
     call_data: bytes
     call_gas_limit: Optional[int] = 0
-    verification_gas_limit: Optional[int] = int(1e7)
+    verification_gas_limit: Optional[int] = 200000
     pre_verification_gas: Optional[int] = 0
     max_fee_per_gas: Optional[int] = 0
     max_priority_fee_per_gas: int
